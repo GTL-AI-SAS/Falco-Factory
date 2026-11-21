@@ -1,0 +1,28 @@
+GTL AI — FALCO FACTORY STUDIO v0.8
+====================================
+
+1. Extrae el ZIP COMPLETO en una carpeta NUEVA.
+2. Cierra las ventanas anteriores de Falco Studio.
+3. Haz doble clic en ABRIR_FALCO_STUDIO.cmd.
+4. Entra a Manage existing Falco.
+5. En la fila falco-gallinas-gemini pulsa Export frontend kit.
+6. Entrega el ZIP exportado al agente que diseña la pagina web.
+
+NO NECESITAS cargarte el Worker local para exportar el frontend.
+La exportacion no modifica Cloudflare ni sus API keys.
+
+ANTES DE PUBLICAR EL CHAT en un dominio real:
+El Worker debe tener autorizado ese mismo origen (CORS).
+Lee README.md, AGENT_GUIDE.md y API_CONTRACT.md del kit.
+
+Manten tus carpetas antiguas de Falco Factory para cargar y
+administrar los proyectos editables existentes.
+
+NUEVO v0.8: multiples Allowed Origins en Create/Manage. Despues de guardar y desplegar, Export frontend kit incluye ALLOWED_ORIGINS.json y ALLOWED_ORIGINS.md verificados desde Cloudflare. No agregues rutas GitHub Pages ni Origin: null.
+
+
+NUEVO v0.8: cada ZIP de frontend lleva ABRIR_FALCO_KIT.cmd para la demo y
+los archivos integration/ABRIR_DEMO.cmd y integration/tools/falco-static-server.mjs.
+El agente de la web DEBE incluir ABRIR_DEMO.cmd en la raiz de la WEB FINAL,
+no solo en el kit, probar la web en http://localhost:3000/ y leer
+LEER_PRIMERO_AGENTE.md. No abrir index.html con file://.

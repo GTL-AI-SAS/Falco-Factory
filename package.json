@@ -1,0 +1,23 @@
+{
+  "name": "@gtl-ai/falco-factory",
+  "private": true,
+  "version": "0.8.0",
+  "description": "Repeatable Cloudflare Worker factory for Falco chat assistants",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "falco": "./bin/falco.mjs"
+  },
+  "scripts": {
+    "falco:new": "node ./bin/falco.mjs new",
+    "falco:ui": "node ./bin/falco-ui.mjs",
+    "falco:smoke": "node ./bin/falco.mjs smoke",
+    "test": "node --test ./tests/*.test.mjs",
+    "test:worker": "node --test ./tests/worker.test.mjs ./tests/providers.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
