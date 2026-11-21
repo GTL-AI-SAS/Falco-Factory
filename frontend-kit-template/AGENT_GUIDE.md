@@ -6,6 +6,10 @@
 
 You are receiving Falco's **neutral transport + example presentation**, not a visual design specification. **Your job is to create the best chat interface for the host website.** You may make it editorial, minimal, animated, full-screen, inline, or floating. Do not preserve the demo look unless it serves the site's art direction.
 
+## Client Actions v1.1 — IMPORTANT
+
+**READ `ACTION_INTEGRATION_GUIDE.md` and `ACTIONS_MANIFEST.json` BEFORE CODING.** A client action is a suggestion, never a permission to execute arbitrary JavaScript. Register only local handlers for capabilities the host page already exposes. Gallinas: `demo.open` changes between 01/02/03 using its existing tabs, with one global Falco in the parent page; never duplicate Falco inside the three iframes. A successful chat reply does not guarantee navigation occurred.
+
 ## Ownership boundaries
 
 **YOUR TERRITORY — edit freely:**
@@ -49,6 +53,11 @@ You may wrap the client in React, Next.js, Vue or Svelte — the kit itself deli
 ## Constraints that should never silently change
 
 - Request: `{ "message": "...", "history": [{ "role": "user|assistant", "content": "..." }] }`
-- Response: `{ "reply": "..." }`
+- Response: `{ "reply": "...", "action"?: {"id":"...","params":{...}} }` (optional; not auto-executed).
 - Maximum user message: 2,000 characters; previous history: 8 entries, 1,000 characters each.
 - AI errors are structured as `{ "error": "code" }` with non-2xx status.
+
+
+## Falco v1.2 — Diagnóstico seguro de errores
+
+`/chat` puede devolver `{ "error": "provider_model_not_found", "message": "...", "providerStatus": 404, "requestId": "UUID", "retryable": false }` con estado HTTP no 2xx. **Nunca renderices cuerpos de error crudos del proveedor ni claves de API.** El frontend puede mostrar el `requestId` y `providerStatus` para soporte técnico; usa `textContent` y evita insertar HTML no confiable. El código de error permite distinguir modelo inexistente, clave rechazada, límite gratuito, timeout, JSON inválido y bloqueo de seguridad. Cuando `retryable` es false no repitas automáticamente la petición; no malgastes cuota de Gemini. Las acciones solamente pueden ejecutarse cuando `/chat` devuelve una respuesta exitosa, válida y verificada por `action-controller.js`.

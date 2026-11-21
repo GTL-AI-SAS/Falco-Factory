@@ -1,8 +1,52 @@
-# GTL AI — Falco Factory Studio v0.8
+# Falco Factory v1.2 — Diagnostics & Runtime Upgrade
 
-**Cloudflare Worker Factory + Lifecycle Manager + Neutral Frontend Integration Kit**
+**GTL AI baseline:** the previously released v0.8 is called v1.0; v1.1 introduced Client Actions. This release adds safer error handling without changing action IDs, the `/chat` success contract, or the Worker URL.
 
-v0.8 builds on v0.7 and adds required Windows launchers and a mandatory agent handoff contract to every frontend ZIP. v0.7 added **multiple allowed website origins per Worker**, editable in Create and Manage, plus **verified CORS metadata inside every frontend ZIP**. It retains create/deploy, discovery, one-click load, knowledge edits, local snapshots, delete and design-neutral kit export.
+## Upgrade Gallinas y Valientes (existing Gemini Worker)
+
+1. Keep your **v1.1 Factory folder** and its generated `.generated/falco-gallinas-gemini` project. Do not delete your existing project source.
+2. Extract v1.2 into a **new folder**, double-click `ABRIR_FALCO_STUDIO.cmd`, and authenticate with Wrangler if needed.
+3. **Manage Existing** → `falco-gallinas-gemini` → **Load Worker**. Studio should auto-link the v1.1 local source.
+4. Review the **Runtime diagnostics v1.2** panel. Click **Upgrade runtime & deploy** and explicitly confirm. This operation only supports official v1.1 source fingerprints. A customized file requires manual review.
+5. Factory creates a local `.falco-history/<ID>.runtime-source` backup of every replaced runtime module, checks the existing Cloudflare Worker, redeploys in place and verifies `/health` including `runtimeVersion: "1.2.0"`. If a cloud deploy was partial, the button permits redeploying the already-updated local source.
+6. Use **Test /chat**: ask “Muéstrame la opción 03”. If Gemini returns an error, Studio now displays `providerStatus`, a stable error code and a non-secret diagnostic request ID. The same ID appears in safe `wrangler tail` logs.
+
+**No API key is needed to upgrade:** the existing `GEMINI_API_KEY` Cloudflare secret remains untouched. A successful `/health` is not proof Gemini will answer—use the real `/chat` test after deployment. Live deployment requires your local Cloudflare session and has not been performed as part of these local tests.
+
+### Error codes (safe to share)
+
+| Failure | Falco code | Worker HTTP | What to check |
+|---|---|---|---|
+| Invalid AI request (upstream 400/422) | `provider_invalid_request` | 502 | Model ID, structured-output options, generated JSON request |
+| Invalid API key / access (401/403) | `provider_auth_failed` | 503 | Cloudflare secret, Gemini project permissions |
+| Model missing (404) | `provider_model_not_found` | 502 | Accessible model ID in Google AI Studio |
+| Quota/rate (429) | `provider_rate_limited` | 503 | Free-tier RPM/RPD limits; optional `Retry-After` |
+| Provider server failure (5xx) | `provider_upstream_unavailable` | 503 | Provider status and service health |
+| Network error / timeout | `provider_unavailable` / `provider_timeout` | 502 / 504 | Network / provider latency |
+| Malformed or empty response | `provider_invalid_response` / `provider_empty_response` | 502 | JSON output, model behavior |
+| Truncated / safety blocked | `provider_output_truncated` / `provider_blocked` | 502 / 422 | Output token budget, model safety response |
+
+Example v1.2 error (illustrative, no live provider request made):
+
+```json
+{"error":"provider_invalid_request","message":"El proveedor rechazó la solicitud. Revisa el modelo y las opciones de generación.","requestId":"00000000-0000-4000-8000-000000000000","retryable":false,"providerStatus":400}
+```
+
+**Privacy:** Worker logs are restricted to event, ID, provider, safe error code, upstream HTTP status and fixed reason; they do not include messages, FAQ content, upstream body, API keys or exception stacks. Never post secrets or entire chat payloads to debug a provider failure.
+
+**Cost control:** no automatic AI retries; this prevents silently consuming more of Gemini's free quota. CORS and the per-IP rate-limit binding are unchanged. Existing clients continue receiving `{reply}` and optional validated `{action}` on success. A v1.2 frontend kit interprets errors but **does not resolve** provider API errors by itself.
+
+Official references: [Cloudflare safe logging guidance](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/) · [Cloudflare wrangler tail](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/) · [Gemini REST API](https://ai.google.dev/api/generate-content).
+
+---
+
+# GTL AI — Falco Factory Studio v1.1 (Client Actions MVP)
+
+**Cloudflare Worker Factory + Lifecycle Manager + Neutral Frontend Kit + Optional Client Actions**
+
+**v1.1 release notes:** [RELEASE_NOTES_v1.1.md](./RELEASE_NOTES_v1.1.md). This builds on the confirmed v1.0 baseline (previously called v0.8).
+
+v1.0 builds on v0.7 and adds required Windows launchers and a mandatory agent handoff contract to every frontend ZIP. v0.7 added **multiple allowed website origins per Worker**, editable in Create and Manage, plus **verified CORS metadata inside every frontend ZIP**. It retains create/deploy, discovery, one-click load, knowledge edits, local snapshots, delete and design-neutral kit export.
 
 ## One-click Windows launch
 
@@ -157,3 +201,26 @@ Do NOT include the GitHub Pages repository path; the browser's Origin contains o
 **CLI:** for new deployments, `--origin https://example.com` still works. Or use `--origins "http://localhost:3000,https://gtl-ai-sas.github.io"` to supply multiple exact origins. Use either `--origin` or `--origins`, not both.
 
 **Existing live Workers are never changed by merely launching v0.7 or exporting a kit.** Updating the allowed origins explicitly starts a Wrangler redeployment; the actual cloud deploy must be performed from your authenticated Windows machine.
+
+
+## NEW in v1.1 — Client Actions MVP
+
+Use **Manage Existing → Load Worker → Client actions** to add the Gallinas preset `demo.open` with options 01 / 02 / 03. Click **Save & Deploy Changes** to upgrade your existing Worker without changing its URL or Gemini secret. Then export a fresh frontend ZIP; the action manifest is verified against the deployed Worker binding. The agent must implement the handler in the **website parent page**; see `ACTION_INTEGRATION_GUIDE.md`. Old chat-only clients continue to work. No action is executed without a local handler.
+
+For CLI, add `--actions ./examples/gallinas/actions.json` to the normal `falco:new` command. Use `[]` (default) for chat-only Workers. This release DOES NOT allow bookings, cancellations, user auth, payments, arbitrary URLs or agent-controlled JavaScript.
+
+### Manual Windows diagnostic (no credentials in commands)
+
+```powershell
+$body = '{"message":"Quiero ver la tercera opción","history":[]}'
+$body | curl.exe -i -X POST "https://falco-gallinas-gemini.gtl-ai.workers.dev/chat" `
+  -H "Content-Type: application/json" --data-binary "@-"
+```
+
+A v1.2 failure includes a safe `requestId` plus `providerStatus`, so you can distinguish Gemini HTTP 400 from 404 or 429. To correlate with the Worker logs, in a terminal authenticated with the target Cloudflare account run:
+
+```powershell
+npx.cmd wrangler tail falco-gallinas-gemini --format pretty
+```
+
+**Share only the error code, provider HTTP status and requestId with a developer.** Never publish `GEMINI_API_KEY`, Cloudflare tokens, prompts, booking data, or full provider error bodies. If a Worker returns a valid `/health` but `/chat` still fails, it is not yet functionally validated.

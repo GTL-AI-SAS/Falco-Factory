@@ -52,3 +52,8 @@ Published static sites work via normal HTTPS: **no `.cmd` is needed on the produ
 If the host site has a Content Security Policy, ensure `connect-src` permits the Worker HTTPS endpoint and scripts/templates load from allowed same-origin sources.
 
 See `LEER_PRIMERO_AGENTE.md`, `AGENT_GUIDE.md`, and `API_CONTRACT.md` before changing anything.
+
+
+## Client Actions v1.1
+
+Read `ACTIONS_MANIFEST.json` and `ACTION_INTEGRATION_GUIDE.md`. Client actions are optional; with `actions: []`, Falco remains chat-only. The site integrator must explicitly register local handlers.

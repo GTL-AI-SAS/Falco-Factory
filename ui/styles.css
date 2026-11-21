@@ -75,3 +75,16 @@
 .kit-note p{font-size:11px;line-height:1.7;color:#66768f;margin:5px 0 0}
 @media(max-width:1100px){.remote-button-row{flex-wrap:wrap;justify-content:flex-end;max-width:305px}}
 @media(max-width:640px){.remote-button-row{max-width:none}.remote-worker-actions{align-items:flex-end}}
+
+/* Client Actions v1.1 */
+.actions-editor { margin-top: 16px; }
+.actions-editor textarea { width: 100%; min-height: 126px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre; tab-size: 2; }
+.action-help-row { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.action-help-row .helper { flex: 1; }
+.action-help-row button { white-space: nowrap; }
+
+/* Falco v1.2 runtime migration control: visually separate from knowledge updates. */
+.runtime-upgrade-panel{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-top:20px;padding:18px 20px;border:1px solid #e7e3f0;border-radius:15px;background:#faf9fd}
+.runtime-upgrade-panel strong{color:#272743;font-size:14px}
+.runtime-upgrade-panel p{margin:5px 0 0;font-size:12px;color:#777590;line-height:1.5}
+.runtime-upgrade-panel button:disabled{opacity:.48;cursor:not-allowed}

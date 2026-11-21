@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <meta name="description" content="GTL AI Falco Factory — Create and deploy Cloudflare AI assistants." />
-  <title>Falco Factory Studio v0.8 · GTL AI</title>
+  <title>Falco Factory Studio v1.2 · GTL AI</title>
   <link rel="stylesheet" href="/styles.css" />
   <script defer src="/app.js"></script>
 </head>
@@ -32,7 +32,7 @@
       <div class="sidebar-bottom">
         <div class="side-line"></div>
         <div class="connection-panel" id="cloudflareSide"><span class="status-light pending" id="cloudflareDot"></span><div><strong id="cloudflareState">Checking Cloudflare</strong><small id="cloudflareSub">Wrangler authentication</small></div></div>
-        <div class="side-footer"><span>GTL AI / ENGINEERING</span><span>v0.8.0</span></div>
+        <div class="side-footer"><span>GTL AI / ENGINEERING</span><span>v1.2.0</span></div>
       </div>
     </aside>
 
@@ -85,6 +85,12 @@
                 </div></div>
                 <div class="field" id="modelField"><div class="label-row"><label for="model">AI model</label><span class="tiny-tag">Provider model ID</span></div><input id="model" name="model" type="text" value="mock-v1" spellcheck="false" /><span class="helper" id="modelHelp">Mock mode responds with a predefined greeting. No provider fees.</span></div>
                 <div class="api-key-area" id="apiKeyArea" hidden><div class="secure-head"><span class="lock-icon">♧</span><div><strong>Provider API key</strong><small>For this deployment only · never saved to source or browser storage.</small></div></div><div class="field"><label for="apiKey" id="apiKeyLabel">OPENAI_API_KEY</label><div class="password-row"><input id="apiKey" type="password" placeholder="Paste your key locally" autocomplete="off" spellcheck="false" /><button class="visibility-btn" id="toggleKey" type="button" aria-label="Show or hide key">Show</button></div><p class="secure-foot">Sent from this local UI to Wrangler <code>secret put</code>. It is not embedded in the Worker.</p></div></div>
+                <div class="actions-editor field full">
+                  <div class="label-row"><label for="actions">Client actions (optional)</label><span class="tiny-tag">Low-risk · Client-side only</span></div>
+                  <p class="helper">Tell Falco which existing website controls it may suggest. Use a JSON array of action IDs, descriptions and closed parameter enums. No admin/database powers. Leave <code>[]</code> to keep chat-only.</p>
+                  <textarea id="actions" rows="6" spellcheck="false" aria-describedby="actionsHelp">[]</textarea>
+                  <div class="action-help-row"><span class="helper" id="actionsHelp">Example Gallinas: <code>demo.open</code> with option <code>01</code>, <code>02</code> or <code>03</code>. “Load restaurant example” fills it in.</span><button class="btn ghost" type="button" id="clearActions">Clear actions</button><button class="btn ghost" type="button" id="useGallinasActions">Use Gallinas preset</button></div>
+                </div>
                 <div class="section-subtitle"><div><h3>Make Falco sound like your business</h3><p>Optional documents shape its answers, not its infrastructure.</p></div></div>
                 <div class="knowledge-grid">
                   <div class="field"><div class="label-row"><label for="instructions">Business instructions</label><label class="upload-control" for="instructionsFile">↑ Import file</label></div><textarea id="instructions" rows="6" placeholder="You are Falco, a friendly assistant...&#10;Answer in Spanish and use a warm tone."></textarea><input type="file" id="instructionsFile" accept=".md,.txt,text/plain,text/markdown" hidden /><span class="size-help"><span>Personality, tone & rules</span><span id="instructionsSize">0 / 12 KB</span></span></div>
@@ -189,18 +195,23 @@
                 </details>
               </section>
               <section class="panel" id="manageEditorPanel" hidden>
-                <div class="panel-header"><span class="step-square">03</span><div><h2>Knowledge & origins</h2><p>Edit FAQs, instructions or the allowed websites. Changes deploy to this same Worker.</p></div></div>
+                <div class="panel-header"><span class="step-square">03</span><div><h2>Knowledge, origins & client actions</h2><p>Edit FAQs, instructions or the allowed websites. Changes deploy to this same Worker.</p></div></div>
                 <div class="knowledge-grid manage-knowledge">
                   <div class="field"><div class="label-row"><label for="manageInstructions">Business instructions</label><span class="change-chip" id="instructionsChange">UNCHANGED</span></div><textarea id="manageInstructions" rows="11" spellcheck="true"></textarea><span class="size-help"><span>Tone, behavior & rules</span><span id="manageInstructionsSize"></span></span></div>
                   <div class="field"><div class="label-row"><label for="manageFaq">FAQ & knowledge</label><span class="change-chip" id="faqChange">UNCHANGED</span></div><textarea id="manageFaq" rows="11" spellcheck="true"></textarea><span class="size-help"><span>Menu, hours, locations, facts</span><span id="manageFaqSize"></span></span></div>
                 </div>
                 <div class="origins-panel field"><div class="label-row"><label for="manageOrigins">Allowed website origins</label><span class="change-chip" id="originsChange">UNCHANGED</span></div><textarea id="manageOrigins" rows="4" spellcheck="false" placeholder="http://localhost:3000&#10;https://gtl-ai-sas.github.io"></textarea><span class="helper">One exact origin per line. This updates the Worker's Cloudflare CORS configuration while preserving its URL and AI provider. Do not include paths or wildcards. After publishing, re-export the frontend ZIP to get the verified allowlist.</span></div>
+                <div class="origins-panel field actions-editor"><div class="label-row"><label for="manageActions">Client actions · existing website features</label><span class="change-chip" id="actionsChange">UNCHANGED</span></div><textarea id="manageActions" rows="7" spellcheck="false">[]</textarea><span class="helper">Use a JSON array. Only string-enum UI actions; each enabled action must be wired by the website agent. Save &amp; Deploy upgrades an older Falco runtime to v1.1 when necessary, with a local source backup; preserves Gemini key and Worker URL.</span><button class="btn ghost" type="button" id="manageGallinasPreset">Use Gallinas navigation preset (01 / 02 / 03)</button></div>
                 <div class="change-summary" id="changeSummary"><span class="change-status-icon">◎</span><div><strong id="manageChangeHeadline">Everything is up to date</strong><p id="manageChangeDetail">Make an edit to preview what will be deployed.</p></div></div>
                 <div class="diff-preview" id="manageDiff" hidden></div>
                 <div class="action-intro"><div class="action-shield">✓</div><div><strong>Same Worker, same URL</strong><p>Cloudflare provider secrets are preserved. A local backup is saved before every update.</p></div></div>
                 <div class="manage-actions">
                   <button type="button" class="btn outline" id="discardChanges">Discard edits</button>
                   <button type="button" class="btn primary" id="saveDeploy" disabled>Save & Deploy Changes <span class="btn-arrow">↗</span></button>
+                </div>
+                <div class="runtime-upgrade-panel">
+                  <div><strong>Runtime diagnostics v1.2</strong><p id="runtimeUpgradeStatus">Checking installed Worker runtime…</p></div>
+                  <button type="button" class="btn outline" id="upgradeDiagnostics" disabled>Upgrade runtime &amp; deploy ↗</button>
                 </div>
               </section>
             </div>

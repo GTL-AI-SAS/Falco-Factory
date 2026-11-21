@@ -5,6 +5,8 @@
  */
 import { createFalcoClient } from '../core/falco-client.js';
 import { falcoConfig } from '../config/falco.config.js';
+import { createActionController } from '../actions/action-controller.js';
+import { falcoActions } from '../actions/actions.manifest.js';
 
 let instanceCount = 0;
 export async function mountFalcoWidget(target, overrides = {}) {
@@ -42,6 +44,7 @@ export async function mountFalcoWidget(target, overrides = {}) {
   find('launch-label').textContent = config.launcherLabel || 'Chat';
   input.placeholder = config.placeholder || 'Write a message';
   const client = createFalcoClient({ endpoint: config.endpoint, timeoutMs: config.timeoutMs, maxHistory: config.maxHistory });
+  const actions = createActionController(falcoActions, overrides.actionHandlers ?? {});
   let destroyed = false;
   let busy = false;
 
@@ -72,12 +75,21 @@ export async function mountFalcoWidget(target, overrides = {}) {
     message('user', text);
     input.value = '';
     try {
-      const { reply } = await client.send(text);
-      if (!destroyed) message('assistant', reply);
+      const { reply, action } = await client.send(text);
+      if (!destroyed) {
+        message('assistant', reply);
+        if (action) {
+          const result = await actions.dispatch(action);
+          if (!result.executed && !destroyed) {
+            status.dataset.error = 'true';
+            status.textContent = result.reason === 'handler_missing' ? 'Esta página todavía no tiene conectada esa acción.' : 'No se pudo realizar esa acción desde esta página.';
+          }
+        }
+      }
     } catch (err) {
       if (!destroyed) {
         status.dataset.error = 'true';
-        status.textContent = err.message || 'Unable to send message.';
+        status.textContent = (err.message || 'No se pudo enviar el mensaje.') + (err.requestId ? ` · Diagnóstico: ${err.requestId}` : '');
       }
     } finally {
       busy = false;

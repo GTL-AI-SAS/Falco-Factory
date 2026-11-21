@@ -26,7 +26,7 @@ try {
   const opts = options(process.argv.slice(2));
   const app = createUiServer({ port: opts.port });
   const url = await app.listen();
-  console.log(`\nFALCO FACTORY STUDIO v0.8\n\nLocal UI: ${url}\nCloudflare deployments still use Wrangler.\nSecrets remain in memory and are passed to Wrangler via stdin.\nThis server listens on 127.0.0.1 only. Press Ctrl+C to stop.\n`);
+  console.log(`\nFALCO FACTORY STUDIO v1.2\n\nLocal UI: ${url}\nCloudflare deployments still use Wrangler.\nSecrets remain in memory and are passed to Wrangler via stdin.\nThis server listens on 127.0.0.1 only. Press Ctrl+C to stop.\n`);
   if (opts.open) openBrowser(url);
 } catch (err) {
   console.error(`Falco Studio: ${err.message}`);

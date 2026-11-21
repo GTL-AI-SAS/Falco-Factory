@@ -1,4 +1,4 @@
-GTL AI — FALCO FACTORY STUDIO v0.8
+GTL AI — FALCO FACTORY STUDIO v1.1
 ====================================
 
 1. Extrae el ZIP COMPLETO en una carpeta NUEVA.
@@ -26,3 +26,14 @@ los archivos integration/ABRIR_DEMO.cmd y integration/tools/falco-static-server.
 El agente de la web DEBE incluir ABRIR_DEMO.cmd en la raiz de la WEB FINAL,
 no solo en el kit, probar la web en http://localhost:3000/ y leer
 LEER_PRIMERO_AGENTE.md. No abrir index.html con file://.
+
+
+NUEVO v1.1 — CLIENT ACTIONS MVP
+================================
+Abre Manage Existing > falco-gallinas-gemini > Load Worker.
+En Client actions pulsa Use Gallinas navigation preset (01/02/03).
+Save & Deploy Changes (migra runtime si es necesario y guarda backup).
+Luego Export frontend kit: contiene ACTIONS_MANIFEST.json y ACTION_INTEGRATION_GUIDE.md.
+El agente debe registrar el handler local demo.open en la pagina index.html PADRE,
+NO en los tres iframes. El Worker no ejecuta acciones sin un handler de la web.
+No habilita reservas, cancelaciones ni permisos administrativos.

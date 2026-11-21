@@ -1,4 +1,4 @@
-import { ProviderError, postJson } from './shared.mjs';
+import { ProviderError, postJson, assertUsableOutput } from './shared.mjs';
 
 export async function geminiProvider({ env, instructions, history, message, fetcher = fetch }) {
   if (!env.GEMINI_API_KEY) throw new ProviderError('provider_not_configured', 503);
@@ -17,6 +17,5 @@ export async function geminiProvider({ env, instructions, history, message, fetc
       generationConfig: { maxOutputTokens: 512, temperature: 0.4 } })
   }, fetcher);
   const output = data?.candidates?.[0]?.content?.parts?.filter(p => typeof p.text === 'string').map(p => p.text).join('') || '';
-  if (!output.trim()) throw new ProviderError('provider_empty_response', 502);
-  return output.trim();
+  return assertUsableOutput(output, { finishReason: data?.candidates?.[0]?.finishReason });
 }

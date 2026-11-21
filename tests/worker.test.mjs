@@ -19,7 +19,7 @@ const good = { message:'Hola, ¿qué ofrecen?', history:[] };
 test('health works independently from provider', async () => {
   const env = { ...baseEnv(), PROVIDER:'openai' };
   const got = await invoke(req('/health'), env);
-  assert.deepEqual(got.body, { status:'ok', service:'falco', business:'Gallinas y Valientes' });
+  assert.deepEqual(got.body, { status:'ok', service:'falco', business:'Gallinas y Valientes', runtimeVersion:'1.2.0' });
 });
 test('mock /chat normalizes output', async () => {
   const got = await invoke(req('/chat', { method:'POST', origin:'https://restaurant.example', body:good }));
@@ -62,7 +62,10 @@ test('missing API key returns 503 without sensitive material', async () => {
   const env = { ...baseEnv(), PROVIDER:'openai' };
   const got = await invoke(req('/chat', { method:'POST', body:good }), env);
   assert.equal(got.status,503);
-  assert.deepEqual(got.body, { error:'provider_not_configured' });
+  assert.equal(got.body.error, 'provider_not_configured');
+  assert.match(got.body.requestId, /^[a-f0-9-]{36}$/);
+  assert.equal(got.body.retryable, false);
+  assert.equal(got.headers.get('X-Falco-Request-Id'), got.body.requestId);
 });
 
 

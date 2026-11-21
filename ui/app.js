@@ -71,11 +71,24 @@
       el.classList.toggle('over', count > limit);
     }
   }
+  const GALLINAS_ACTION_PRESET = [{
+    id: 'demo.open',
+    description: 'Abrir una de las tres opciones visuales del sitio Gallinas y Valientes cuando el visitante lo solicite.',
+    parameters: { option: { type:'string', enum:['01','02','03'] } }
+  }];
+  function readActionEditor(id) {
+    const value = $(id).value.trim() || '[]';
+    let parsed;
+    try { parsed = JSON.parse(value); } catch { throw Error('Client actions must be a valid JSON array.'); }
+    if (!Array.isArray(parsed) || parsed.length > 8) throw Error('Use an array with at most 8 client actions.');
+    if (byteLength(JSON.stringify(parsed)) > 3900) throw Error('Client actions exceed the Cloudflare binding limit (3.9 KB).');
+    return parsed;
+  }
   function config() {
     return {
       business: $('business').value.trim(), name: $('name').value.trim(),
       provider: provider(), model: $('model').value.trim(), origins: $('origin').value.split(/[\n,]/).map(x=>x.trim()).filter(Boolean),
-      instructions: $('instructions').value, faq: $('faq').value,
+      instructions: $('instructions').value, faq: $('faq').value, actions: readActionEditor('actions'),
       mockReply: $('mockReply').value.trim(),
       rateLimit: $('rateLimit').value.trim(), outputFolder: $('outputFolder').value.trim(),
       accountId: $('accountId').value.trim(), force: $('force').checked,
@@ -381,13 +394,15 @@
     else if (accounts.length === 1) select.value = accounts[0].id;
   }
   function currentManageChanges() {
-    if (!managed) return { changed: false, faqChanged: false, instructionsChanged: false, originsChanged: false };
+    if (!managed) return { changed: false, faqChanged: false, instructionsChanged: false, originsChanged: false, actionsChanged: false };
     const faqChanged = $('manageFaq').value !== managed.faq;
     const instructionsChanged = $('manageInstructions').value !== managed.instructions;
     const originalOrigins = managed.origins ?? [managed.origin];
     const editedOrigins = $('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
     const originsChanged = JSON.stringify(editedOrigins) !== JSON.stringify(originalOrigins);
-    return { faqChanged, instructionsChanged, originsChanged, changed: faqChanged || instructionsChanged || originsChanged };
+    let actionsChanged=false, actionsInvalid=false;
+    try { actionsChanged = JSON.stringify(readActionEditor('manageActions')) !== JSON.stringify(managed.actions ?? []); } catch { actionsInvalid=true; }
+    return { faqChanged, instructionsChanged, originsChanged, actionsChanged, actionsInvalid, changed: faqChanged || instructionsChanged || originsChanged || actionsChanged };
   }
   function changedLines(a,b) {
     const before = a.split(/\r?\n/), after = b.split(/\r?\n/);
@@ -401,13 +416,13 @@
   }
   function updateManageDiff() {
     const changes = currentManageChanges();
-    for (const [key, changed] of [['Faq',changes.faqChanged],['Instructions',changes.instructionsChanged],['Origins',changes.originsChanged]]) {
-      const chip = $(key === 'Faq' ? 'faqChange' : key === 'Origins' ? 'originsChange' : 'instructionsChange');
+    for (const [key, changed] of [['Faq',changes.faqChanged],['Instructions',changes.instructionsChanged],['Origins',changes.originsChanged],['Actions',changes.actionsChanged]]) {
+      const chip = $(key === 'Faq' ? 'faqChange' : key === 'Origins' ? 'originsChange' : key === 'Actions' ? 'actionsChange' : 'instructionsChange');
       chip.textContent = changed ? 'MODIFIED' : 'UNCHANGED';
       chip.classList.toggle('modified', changed);
     }
     const limits = [['manageFaq',24000],['manageInstructions',12000]];
-    let invalid = false;
+    let invalid = changes.actionsInvalid;
     for (const [id,max] of limits) {
       const size = byteLength($(id).value);
       const counter = $(id+'Size');
@@ -418,13 +433,13 @@
     const originRows = $('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
     invalid ||= !originRows.length || originRows.length > 20 || originRows.some(x => !/^https?:\/\/[^/?#\s]+$/.test(x));
     $('saveDeploy').disabled = !changes.changed || invalid || !managed || Boolean(pollHandle);
-    $('manageChangeHeadline').textContent = invalid ? 'Knowledge exceeds the size limit' : changes.changed ? 'Changes ready to review' : 'Everything is up to date';
-    $('manageChangeDetail').textContent = invalid ? 'Shorten the highlighted text before deploying.' : changes.changed ? 'A version backup will be created before publishing the update.' : 'Make an edit to preview what will be deployed.';
+    $('manageChangeHeadline').textContent = invalid ? 'Check origins, JSON and document limits' : changes.changed ? 'Changes ready to review' : 'Everything is up to date';
+    $('manageChangeDetail').textContent = invalid ? 'Correct the invalid origins, client actions JSON or oversized document.' : changes.changed ? 'A version backup will be created before publishing the update.' : 'Make an edit to preview what will be deployed.';
     const diff = $('manageDiff');
     diff.replaceChildren();
     diff.hidden = !changes.changed;
     if (managed && changes.changed) {
-      for (const [title, original, updated] of [['FAQ', managed.faq, $('manageFaq').value],['Instructions',managed.instructions,$('manageInstructions').value],['Allowed origins',(managed.origins ?? [managed.origin]).join('\n'),$('manageOrigins').value]]) {
+      for (const [title, original, updated] of [['FAQ', managed.faq, $('manageFaq').value],['Instructions',managed.instructions,$('manageInstructions').value],['Allowed origins',(managed.origins ?? [managed.origin]).join('\n'),$('manageOrigins').value],['Client actions',JSON.stringify(managed.actions ?? [],null,2),$('manageActions').value]]) {
         if (original === updated) continue;
         const d = changedLines(original, updated);
         const row = document.createElement('div'); row.className = 'diff-line';
@@ -476,6 +491,7 @@
       $('manageFaq').value = project.faq;
       $('manageInstructions').value = project.instructions;
       $('manageOrigins').value = (project.origins ?? [project.origin]).join('\n');
+      $('manageActions').value = JSON.stringify(project.actions ?? [], null, 2);
       $('managedBusiness').textContent = project.business;
       $('managedWorker').textContent = project.name;
       $('managedProvider').textContent = `${project.provider} · ${project.model}`;
@@ -483,6 +499,14 @@
       $('manageIdentityName').textContent = project.name;
       $('manageIdentitySub').textContent = `${project.business} · ${project.provider}`;
       updateManageDiff();
+      $('upgradeDiagnostics').disabled = true;
+      $('runtimeUpgradeStatus').textContent = 'Checking runtime files…';
+      try {
+        const info = await api(`/api/projects/${encodeURIComponent(folder)}/runtime-status`);
+        $('runtimeUpgradeStatus').textContent = info.state === 'current' ? 'Local v1.2 installed. Redeploy to verify or recover Cloudflare.' : info.state === 'upgrade_available' ? `${info.files.length} official source files can be upgraded safely. Existing API key preserved.` : (info.message || 'Manual source review required.');
+        $('upgradeDiagnostics').disabled = !['upgrade_available','current'].includes(info.state);
+        $('upgradeDiagnostics').textContent = info.state === 'current' ? 'Redeploy & verify v1.2 ↗' : 'Upgrade runtime & deploy ↗';
+      } catch (err) { $('runtimeUpgradeStatus').textContent = err.message; }
       await loadVersions();
     } catch (err) { managed=null; setManageError(err.message); }
   }
@@ -528,19 +552,22 @@
     const changes = currentManageChanges();
     if (operation === 'update' && !changes.changed) return;
     if (operation === 'restore' && changes.changed && !window.confirm('You have UNSAVED text edits. Restoring a snapshot will discard those browser edits. Continue?')) return;
+    if (operation === 'upgrade-runtime' && changes.changed) { setManageError('You have unsaved knowledge edits. Save or discard them before upgrading the runtime.'); return; }
     if (byteLength($('manageFaq').value)>24000 || byteLength($('manageInstructions').value)>12000) { setManageError('Knowledge document exceeds its size limit.'); return; }
-    const label = operation === 'restore' ? 'RESTORE' : 'UPDATE';
-    const question = operation === 'restore'
+    const label = operation === 'restore' ? 'RESTORE' : operation === 'upgrade-runtime' ? 'RUNTIME UPGRADE' : 'UPDATE';
+    const question = operation === 'upgrade-runtime'
+      ? `Upgrade the official v1.1 runtime of ${managed.name} to v1.2 diagnostics?\n\nThis redeploys the SAME Worker, preserves its URL, Gemini secret, knowledge and action manifest. Old source code is backed up locally.`
+      : operation === 'restore'
       ? `Restore this previous knowledge version to ${managed.name}?\n\nThis redeploys the existing Worker. A backup of the current version is saved first.`
       : `Publish your changes to ${managed.name}?\n\nThis may update the CORS origin allowlist. Your Worker URL and API key secrets are preserved. A local snapshot is saved before deployment.`;
     if (!window.confirm(question)) return;
     try {
       if (operation === 'update') {
-        const preview = await api(`/api/projects/${encodeURIComponent(managed.folder)}/preview-update`, { method:'POST',data:{ faq:$('manageFaq').value, instructions:$('manageInstructions').value, origins:$('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean), revision:managed.revision } });
+        const preview = await api(`/api/projects/${encodeURIComponent(managed.folder)}/preview-update`, { method:'POST',data:{ faq:$('manageFaq').value, instructions:$('manageInstructions').value, origins:$('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean), actions: readActionEditor('manageActions'), revision:managed.revision } });
         if (!preview.diff.changed) throw new Error('Nothing changed.');
       }
       const payload = { mode: operation, folder: managed.folder, revision: managed.revision,
-        ...(operation === 'restore' ? { versionId } : { faq:$('manageFaq').value, instructions:$('manageInstructions').value, origins:$('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean) }) };
+        ...(operation === 'restore' ? { versionId } : operation === 'upgrade-runtime' ? {} : { faq:$('manageFaq').value, instructions:$('manageInstructions').value, origins:$('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean), actions: readActionEditor('manageActions') }) };
       const response = await api('/api/jobs', { method:'POST',data:payload });
       jobArea='manage'; activeJobId=response.job.id; lastEventCount=-1;
       activeJobProvider=managed.provider; activeJobWorker=managed.name;
@@ -622,6 +649,7 @@
       const example = await api('/api/example/gallinas');
       for (const key of ['business','name','origin','faq','instructions']) $(key).value = example[key];
       userEditedName = true;
+      $('actions').value = JSON.stringify(example.actions ?? [], null, 2);
       lastAutoName = example.name;
       form.querySelector('input[name="provider"][value="mock"]').checked = true;
       selectedProviderChanged();
@@ -649,7 +677,7 @@
     $('testReply').textContent = 'Sending request to your Cloudflare Worker...';
     try {
       const data = await api(`/api/jobs/${activeJobId}/chat`, { method: 'POST', data: { message: question } });
-      $('testReply').textContent = `Falco: ${data.reply}`;
+      $('testReply').textContent = `Falco: ${data.reply}` + (data.action ? `\nProposed action (preview only, not executed in Studio): ${JSON.stringify(data.action)}` : '');
     } catch (err) { $('testReply').textContent = err.message; }
     finally { button.disabled = false; }
   }
@@ -662,7 +690,7 @@
     $('manageTestReply').textContent='Contacting your deployed Worker...';
     try {
       const reply=await api(`/api/jobs/${activeJobId}/chat`,{method:'POST',data:{message:question}});
-      $('manageTestReply').textContent='Falco: '+reply.reply;
+      $('manageTestReply').textContent='Falco: '+reply.reply+(reply.action ? `\nProposed action (preview only): ${JSON.stringify(reply.action)}` : '');
     } catch(err) { $('manageTestReply').textContent=err.message; }
     finally { button.disabled=false; }
   }
@@ -676,7 +704,7 @@
       updateSummary();
     });
     $('name').addEventListener('input', () => { userEditedName = true; updateSummary(); });
-    for (const key of ['origin','model','faq','instructions','mockReply']) $(key).addEventListener('input', updateSummary);
+    for (const key of ['origin','model','faq','instructions','mockReply','actions']) $(key).addEventListener('input', updateSummary);
     for (const r of form.querySelectorAll('input[name="provider"]')) r.addEventListener('change', selectedProviderChanged);
     $('force').addEventListener('change', () => { $('confirmationArea').hidden = !$('force').checked; });
     $('toggleKey').addEventListener('click', () => {
@@ -702,8 +730,13 @@
     $('manageFaq').addEventListener('input', updateManageDiff);
     $('manageInstructions').addEventListener('input', updateManageDiff);
     $('manageOrigins').addEventListener('input', updateManageDiff);
+    $('manageActions').addEventListener('input', updateManageDiff);
+    $('clearActions').addEventListener('click', () => { $('actions').value='[]'; updateSummary(); });
+    $('useGallinasActions').addEventListener('click', () => { $('actions').value=JSON.stringify(GALLINAS_ACTION_PRESET,null,2); updateSummary(); });
+    $('manageGallinasPreset').addEventListener('click', () => { $('manageActions').value=JSON.stringify(GALLINAS_ACTION_PRESET,null,2); updateManageDiff(); });
     $('saveDeploy').addEventListener('click', () => void startManageJob('update'));
-    $('discardChanges').addEventListener('click', () => { if (managed) { $('manageFaq').value=managed.faq; $('manageInstructions').value=managed.instructions; $('manageOrigins').value=(managed.origins ?? [managed.origin]).join('\n'); updateManageDiff(); } });
+    $('upgradeDiagnostics').addEventListener('click', () => void startManageJob('upgrade-runtime'));
+    $('discardChanges').addEventListener('click', () => { if (managed) { $('manageFaq').value=managed.faq; $('manageInstructions').value=managed.instructions; $('manageOrigins').value=(managed.origins ?? [managed.origin]).join('\n'); $('manageActions').value=JSON.stringify(managed.actions ?? [],null,2); updateManageDiff(); } });
     $('importBtn').addEventListener('click', importProject);
     $('manageTestToggle').addEventListener('click', () => { $('manageTestChat').hidden=!$('manageTestChat').hidden; });
     $('manageTestSend').addEventListener('click', manageTestChat);

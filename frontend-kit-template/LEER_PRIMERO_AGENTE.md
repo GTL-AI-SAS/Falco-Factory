@@ -44,6 +44,10 @@ Debes **crear/adaptar `ABRIR_DEMO.cmd` en la raíz del proyecto** para iniciar s
 - En **GitHub Pages o Cloudflare Pages**, el hosting sirve la web por HTTPS sin necesitar `.cmd` en producción. Se debe autorizar el origen HTTPS real del sitio, **no** una ruta de repositorio ni el nombre de un proyecto.
 - El `.cmd` es solo para ejecución local en Windows. No es requisito para que GitHub Pages o Cloudflare Pages funcionen.
 
+## Acciones opcionales (Falco v1.1)
+
+Lee `ACTIONS_MANIFEST.json` y `ACTION_INTEGRATION_GUIDE.md`. Si el manifest contiene `demo.open`, IMPLEMENTA y prueba la navegacion 01/02/03 con el controlador del kit, reusando la navegacion real de la web y dejando una sola instancia Falco en el parent page (no una por iframe). No uses eval, selectors inventados por IA, ni endpoints arbitrarios. Sin handlers locales, no hay acciones.
+
 ## Pruebas OBLIGATORIAS antes de entregar
 
 - [ ] Entregué `ABRIR_DEMO.cmd` en la raíz de **la web terminada**.
@@ -57,3 +61,8 @@ Debes **crear/adaptar `ABRIR_DEMO.cmd` en la raíz del proyecto** para iniciar s
 - [ ] No inserté secretos en archivos públicos ni modifiqué CORS para permitir `null`.
 
 **CRITERIO DE RECHAZO:** entregar solamente `index.html` + Falco y afirmar que está probado sin una URL `http://localhost:3000` o HTTPS autorizada no cumple el contrato.
+
+
+## Falco v1.2 — Diagnóstico seguro de errores
+
+`/chat` puede devolver `{ "error": "provider_model_not_found", "message": "...", "providerStatus": 404, "requestId": "UUID", "retryable": false }` con estado HTTP no 2xx. **Nunca renderices cuerpos de error crudos del proveedor ni claves de API.** El frontend puede mostrar el `requestId` y `providerStatus` para soporte técnico; usa `textContent` y evita insertar HTML no confiable. El código de error permite distinguir modelo inexistente, clave rechazada, límite gratuito, timeout, JSON inválido y bloqueo de seguridad. Cuando `retryable` es false no repitas automáticamente la petición; no malgastes cuota de Gemini. Las acciones solamente pueden ejecutarse cuando `/chat` devuelve una respuesta exitosa, válida y verificada por `action-controller.js`.

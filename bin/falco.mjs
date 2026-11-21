@@ -8,7 +8,7 @@ import { smoke } from '../lib/smoke.mjs';
 function usage() {
   console.log(`FALCO FACTORY v${VERSION}\n\n` +
 `Generate: npm run falco:new -- --name falco-gallinas --business "Gallinas y Valientes" --provider mock --origin http://localhost:3000 --faq ./examples/gallinas/faq.md --deploy\n\n` +
-`Options: --name --business --provider mock|openai|gemini --model --origin --origins --faq --instructions --output --deploy --dry-run --force --account-id --rate-limit --rate-namespace --mock-reply\n` +
+`Options: --name --business --provider mock|openai|gemini --model --origin --origins --faq --instructions --actions ./examples/gallinas/actions.json --output --deploy --dry-run --force --account-id --rate-limit --rate-namespace --mock-reply\n` +
 `Smoke:    npm run falco:smoke -- --url https://my-worker.example.workers.dev --chat [--business "Name"]\n\n` +
 `--dry-run previews and does not write files. --force permits replacement of the same generated project and remote Worker.\n`);
 }

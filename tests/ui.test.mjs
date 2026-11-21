@@ -67,7 +67,7 @@ test('preview leaves disk unchanged and generation writes complete project', asy
   const before = await env.post('/api/preview', baseline);
   assert.equal(before.code, 200);
   assert.equal(before.body.localExists, false);
-  assert.equal(before.body.files.length, 12);
+  assert.equal(before.body.files.length, 13);
   await assert.rejects(fs.stat(path.join(env.tmp, '.generated')));
   const started = await env.post('/api/jobs', { ...baseline, mode: 'generate' });
   assert.equal(started.code, 202);

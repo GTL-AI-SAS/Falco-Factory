@@ -1,4 +1,4 @@
-import { ProviderError, postJson } from './shared.mjs';
+import { ProviderError, postJson, assertUsableOutput } from './shared.mjs';
 
 export async function openaiProvider({ env, instructions, history, message, fetcher = fetch }) {
   if (!env.OPENAI_API_KEY) throw new ProviderError('provider_not_configured', 503);
@@ -12,6 +12,5 @@ export async function openaiProvider({ env, instructions, history, message, fetc
   }, fetcher);
   const output = data?.output_text || data?.output?.flatMap(item => item.type === 'message' ? (item.content ?? []) : [])
     .filter(part => part.type === 'output_text').map(part => part.text).join('') || '';
-  if (typeof output !== 'string' || !output.trim()) throw new ProviderError('provider_empty_response', 502);
-  return output.trim();
+  return assertUsableOutput(output, { finishReason: data?.status === 'incomplete' ? 'MAX_TOKENS' : null });
 }

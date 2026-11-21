@@ -34,7 +34,7 @@ function unzipBuffer(buffer) {
 test('kit exports sixteen public files, Windows launchers, mandatory agent instructions and no secrets', async () => {
   const kit = await createFrontendKit({ name: WORKER, endpoint: ENDPOINT, allowedOrigins: ['http://localhost:3000', 'https://gtl-ai-sas.github.io'] });
   const files = unzipBuffer(kit.bytes);
-  assert.equal(files.size, 16);
+  assert.equal(files.size, 21);
   assert.match(files.get('config/falco.config.js'), /https:\/\/falco-gallinas-gemini\.gtl-ai\.workers\.dev\/chat/);
   assert.match(files.get('README.md'), /http:\/\/localhost:3000/);
   assert.match(files.get('ALLOWED_ORIGINS.md'), /gtl-ai-sas.github.io/);
@@ -99,6 +99,7 @@ test('Studio export endpoint sends an actual ZIP without changing Workers or usi
     cloudWorkers:async()=>{discoveryCount++;return {accountId:ACCOUNT_ID,workers:[{name:WORKER}]};},
     workerEndpoint:async()=>{endpointCount++;return ENDPOINT;},
     remoteOrigins:async()=>['http://localhost:3000','https://gtl-ai-sas.github.io'],
+    remoteActions:async()=>[],
   }});
   const base=await app.listen();
   t.after(async()=>{await app.close();await fs.rm(root,{recursive:true,force:true});});
@@ -113,7 +114,7 @@ test('Studio export endpoint sends an actual ZIP without changing Workers or usi
   assert.match(success.headers.get('content-type'),/application\/zip/);
   assert.match(success.headers.get('content-disposition'),/falco-gallinas-gemini-frontend-kit.zip/);
   const files=unzipBuffer(Buffer.from(await success.arrayBuffer()));
-  assert.equal(files.size,16);
+  assert.equal(files.size,21);
   assert.match(files.get('config/falco.config.js'),/gtl-ai\.workers\.dev\/chat/);
   assert.deepEqual(JSON.parse(files.get('ALLOWED_ORIGINS.json')).origins, ['http://localhost:3000','https://gtl-ai-sas.github.io']);
   assert.equal(endpointCount,1);
