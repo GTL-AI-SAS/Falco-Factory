@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Falco — Neutral integration demo</title>
+  <link rel="stylesheet" href="../widget/falco-widget.css">
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; margin: 0; color: #202020; background: #fafafa; }
+    main { max-width: 720px; margin: 80px auto; padding: 20px; }
+    p { color: #666; }
+    code { background: #eee; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Falco Integration Demo</h1>
+    <p>This page has intentionally neutral styling. The chat launcher is in the bottom-right corner.</p>
+    <p>To change the widget, edit <code>widget/falco-widget.html</code> and <code>widget/falco-widget.css</code>. Transport lives in <code>core/falco-client.js</code>.</p>
+    <p id="falco-boot-status" role="status"></p>
+  </main>
+  <div id="falco-mount"></div>
+  <script type="module">
+    import { mountFalcoWidget } from '../widget/falco-widget.js';
+    mountFalcoWidget('#falco-mount').catch(error => {
+      document.querySelector('#falco-boot-status').textContent = `Widget failed to load: ${error.message}`;
+    });
+  </script>
+</body>
+</html>

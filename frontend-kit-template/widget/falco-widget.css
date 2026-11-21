@@ -1,0 +1,46 @@
+/* EDIT FREELY. No Shadow DOM, no framework, no inline styles, no dependencies.
+   All classes are prefixed falco__ to avoid collisions with an existing website.
+   For a radical redesign you may replace this whole file and the HTML template. */
+.falco {
+  --falco-bg: #fff;
+  --falco-fg: #202020;
+  --falco-muted: #666;
+  --falco-border: #d9d9d9;
+  --falco-soft: #f5f5f5;
+  --falco-accent: #292929;
+  --falco-on-accent: #fff;
+  --falco-radius: 12px;
+  --falco-gap: 12px;
+  font: 14px/1.5 system-ui, sans-serif;
+  color: var(--falco-fg);
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+.falco *, .falco *::before, .falco *::after { box-sizing: border-box; }
+.falco [hidden] { display: none !important; }
+.falco button, .falco input { font: inherit; }
+.falco button { cursor: pointer; }
+.falco button:focus-visible, .falco input:focus-visible { outline: 2px solid var(--falco-accent); outline-offset: 3px; }
+.falco__launcher { border: 1px solid var(--falco-border); background: var(--falco-bg); color: var(--falco-fg); border-radius: 999px; box-shadow: 0 5px 18px #00000012; padding: 12px 17px; }
+.falco__panel { width: min(350px, calc(100vw - 40px)); height: min(490px, calc(100dvh - 120px)); border: 1px solid var(--falco-border); background: var(--falco-bg); border-radius: var(--falco-radius); box-shadow: 0 12px 32px #00000018; display: flex; flex-direction: column; margin-bottom: 10px; overflow: hidden; }
+.falco__header { display: flex; justify-content: space-between; align-items: center; padding: 13px 15px; border-bottom: 1px solid var(--falco-border); }
+.falco__heading { display: grid; gap: 1px; }
+.falco__heading strong { font-weight: 650; }
+.falco__hint { font-size: 12px; color: var(--falco-muted); }
+.falco__close { border: 0; background: transparent; color: var(--falco-fg); font-size: 23px; line-height: 1; padding: 3px 6px; }
+.falco__messages { display: flex; flex: 1; flex-direction: column; gap: var(--falco-gap); padding: 14px; overflow-y: auto; overscroll-behavior: contain; }
+.falco__bubble { max-width: 88%; align-self: flex-start; padding: 10px 12px; background: var(--falco-soft); color: var(--falco-fg); border-radius: var(--falco-radius); overflow-wrap: anywhere; white-space: pre-wrap; }
+.falco__bubble--user { align-self: flex-end; background: var(--falco-accent); color: var(--falco-on-accent); }
+.falco__status { min-height: 0; padding: 0 14px; color: var(--falco-muted); font-size: 12px; }
+.falco__status:not(:empty) { padding-bottom: 8px; }
+.falco__status[data-error="true"] { color: #9a3030; }
+.falco__form { border-top: 1px solid var(--falco-border); padding: 12px; display: flex; gap: 8px; }
+.falco__input { flex: 1; min-width: 0; border: 1px solid var(--falco-border); background: var(--falco-bg); color: var(--falco-fg); border-radius: 7px; padding: 9px 10px; }
+.falco__submit { border: 0; border-radius: 7px; background: var(--falco-accent); color: var(--falco-on-accent); padding: 9px 14px; }
+.falco__submit:disabled { opacity: .55; cursor: wait; }
+.falco__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 420px) { .falco { right: 10px; bottom: 10px; } .falco__panel { width: calc(100vw - 20px); height: min(70dvh, 500px); } }
+@media (prefers-reduced-motion: reduce) { .falco *, .falco *::before, .falco *::after { transition: none !important; animation: none !important; } }

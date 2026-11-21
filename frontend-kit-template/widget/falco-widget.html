@@ -1,0 +1,22 @@
+<!-- EDIT FREELY: no backend logic here. Keep data-falco-* hooks OR update widget.js selectors. -->
+<div class="falco" data-falco-widget>
+  <button class="falco__launcher" type="button" data-falco-launcher aria-expanded="false">
+    <span aria-hidden="true">◌</span> <span data-falco-launch-label>Chat</span>
+  </button>
+  <section class="falco__panel" data-falco-panel aria-label="Chat assistant" hidden>
+    <header class="falco__header">
+      <div class="falco__heading">
+        <strong data-falco-title>Assistant</strong>
+        <span class="falco__hint">Ask a question</span>
+      </div>
+      <button type="button" class="falco__close" data-falco-close aria-label="Close chat">×</button>
+    </header>
+    <div class="falco__messages" data-falco-messages role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions"></div>
+    <div class="falco__status" data-falco-status role="status" aria-live="polite"></div>
+    <form class="falco__form" data-falco-form>
+      <label class="falco__sr-only" data-falco-input-label for="falco-message">Your message</label>
+      <input class="falco__input" data-falco-input id="falco-message" type="text" autocomplete="off" maxlength="2000" required placeholder="Write a message" />
+      <button class="falco__submit" data-falco-send type="submit">Send</button>
+    </form>
+  </section>
+</div>
