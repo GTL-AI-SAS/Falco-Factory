@@ -45,6 +45,29 @@ test('replacement requires typed exact worker name', () => {
   assert.equal(configFromForm({ ...baseline, force: true, confirmName: baseline.name }).force, true);
 });
 
+test('Studio serves the official Falco identity assets and favicon with the correct media types', async t => {
+  const env = await withServer(t);
+  const html = await (await fetch(env.url)).text();
+  assert.match(html, /rel="icon" href="\/favicon.ico"/);
+  assert.match(html, /rel="apple-touch-icon"/);
+  assert.doesNotMatch(html, /M6 12 40 5/);
+  for (const [route, file, type] of [
+    ['/favicon.ico', 'favicon.ico', 'image/x-icon'],
+    ['/assets/falco-emblem.svg', 'falco-emblem.svg', 'image/svg+xml'],
+    ['/assets/falco-app-icon.svg', 'falco-app-icon.svg', 'image/svg+xml'],
+    ['/assets/falco-logo-dark.png', 'falco-logo-dark.png', 'image/png'],
+    ['/assets/falco-logo-compact.png', 'falco-logo-compact.png', 'image/png'],
+    ['/assets/apple-touch-icon.png', 'apple-touch-icon.png', 'image/png'],
+    ['/assets/favicon-32.png', 'favicon-32.png', 'image/png']
+  ]) {
+    const response = await fetch(env.url + route);
+    assert.equal(response.status, 200, route);
+    assert.equal(response.headers.get('content-type'), type);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), await fs.readFile(new URL('../ui/assets/' + file, import.meta.url)));
+  }
+  assert.equal((await fetch(env.url + '/assets/not-public.svg')).status, 404);
+});
+
 test('existing Worker chat works without a deployment job or local source and uses the selected account', async t => {
   const accountId = 'a'.repeat(32);
   let called;

@@ -317,7 +317,7 @@
     for (const item of rows) {
       const card = document.createElement('div');
       card.className = 'remote-worker-card';
-      const glyph = document.createElement('span'); glyph.className = 'remote-glyph'; glyph.textContent = '↗︎';
+      const glyph = document.createElement('img'); glyph.className = 'remote-glyph'; glyph.src = '/assets/falco-emblem.svg'; glyph.alt = ''; glyph.width = 33; glyph.height = 33;
       const info = document.createElement('div'); info.className = 'remote-worker-detail';
       const title = document.createElement('strong'); title.textContent = item.name;
       const subtitle = document.createElement('small');
@@ -709,7 +709,7 @@
         const option = document.createElement('option'); option.value=project.folder;
         option.textContent=`${project.business} · ${project.name}`; select.append(option);
         const item = document.createElement('button'); item.type='button'; item.className='project-item project-click';
-        const icon = document.createElement('span'); icon.className='project-icon'; icon.textContent='F';
+        const icon = document.createElement('img'); icon.className='project-icon'; icon.src='/assets/falco-emblem.svg'; icon.alt=''; icon.width=28; icon.height=28;
         const info = document.createElement('div'); info.className='project-text';
         const name = document.createElement('strong'); name.textContent=project.name;
         const sub = document.createElement('small'); sub.textContent=project.provider+' · manage →';

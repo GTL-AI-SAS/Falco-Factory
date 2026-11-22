@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Falco emblem">
+  <title>FALCO emblem</title>
+  
+  <g>
+    <path d="M78 36 A100 100 0 1 0 178 36"
+          fill="none" stroke="#090B0F" stroke-width="17" stroke-linecap="butt"/>
+    <path d="M54 86
+             H120
+             C134 86 142 96 154 103
+             C169 111 181 119 190 136
+             C179 129 166 127 152 132
+             L82 157
+             L106 135
+             L139 123
+             C147 120 154 115 158 110
+             L145 106
+             L127 109
+             C100 110 72 104 54 86 Z"
+          fill="#090B0F"/>
+    <path d="M81 160
+             L154 134
+             L101 188
+             L68 198 Z"
+          fill="#090B0F"/>
+  </g>
+</svg>

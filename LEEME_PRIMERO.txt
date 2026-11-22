@@ -2,6 +2,7 @@ FALCO FACTORY STUDIO v1.6.3
 
 1. Extrae el ZIP completo en una carpeta nueva.
 2. En Windows abre ABRIR_FALCO_STUDIO.cmd. Requiere Node.js 22.12.0 o superior. La primera apertura instala las dependencias con el lockfile de Wrangler 4.166.0 incluido.
+   Se crea ABRIR_FALCO_STUDIO.lnk en esta misma carpeta con el icono oficial de FALCO. Usa ese acceso directo para abrir Studio. Si mueves la carpeta, abre el .cmd una vez para actualizarlo.
 3. En PowerShell, desde esta carpeta, ejecuta npm.cmd run falco:auth:secure para usar Wrangler OAuth con Windows Credential Manager.
 4. Ejecuta npm.cmd run falco:auth:status o abre Authentication & permissions en Studio para revisar método, almacenamiento y permisos de lectura.
 5. Manage Workers → Load Worker → revisa el estado remoto antes de modificar Workers existentes.

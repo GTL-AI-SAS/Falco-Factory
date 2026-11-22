@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 330" role="img" aria-label="FALCO primary horizontal logo">
+  <title>FALCO — primary horizontal logo</title>
+  
+  <g transform="translate(30 37) scale(1.0)">
+    <path d="M78 36 A100 100 0 1 0 178 36"
+          fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="butt"/>
+    <path d="M54 86 H120 C134 86 142 96 154 103 C169 111 181 119 190 136
+             C179 129 166 127 152 132 L82 157 L106 135 L139 123
+             C147 120 154 115 158 110 L145 106 L127 109
+             C100 110 72 104 54 86 Z" fill="#FFFFFF"/>
+    <path d="M81 160 L154 134 L101 188 L68 198 Z" fill="#FFFFFF"/>
+  </g>
+  <text x="310" y="229" fill="#FFFFFF" font-family="Inter, Arial, sans-serif"
+        font-size="174" font-weight="800" letter-spacing="1.5">FALCO</text>
+</svg>

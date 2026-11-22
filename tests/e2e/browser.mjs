@@ -79,6 +79,10 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(ui);
+  await page.locator('.brand-logo').evaluate(image => image.decode());
+  assert.equal(await page.locator('.brand-logo').getAttribute('alt'), 'FALCO');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--mint').trim()), '#68e2c3');
+  assert.equal(await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href'), '/assets/falco-app-icon.svg');
   for (const id of ['buildSummaryPanel', 'assistantPreviewPanel', 'consoleCard']) {
     const panel = page.locator('#' + id);
     await panel.locator(':scope > summary').click();
@@ -163,6 +167,8 @@ try {
   await page.locator('#operationsPanel summary').click();
   await page.locator('#showHistory').click();
   await page.getByText(/update · updated/).first().waitFor();
+  await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
+  assert.deepEqual(await page.evaluate(() => [...document.images].filter(image => !image.naturalWidth).map(image => image.src)), []);
   assert.deepEqual(errors, []);
 
   const home = 'http://127.0.0.1:' + testServer.address().port;

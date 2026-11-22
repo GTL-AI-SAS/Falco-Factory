@@ -2,6 +2,8 @@
 
 Falco Factory crea y administra un Worker Cloudflare por negocio. Studio incluye gestión de versiones locales y remotas, controles de consumo y exportación de kits de integración.
 
+Studio uses the supplied `FALCO_Option_04_Assets` identity: official logo and emblem, Mint `#68E2C3`, Near Black `#090B0F`, and Off White `#F3F4F6`. The deployed UI assets are bundled under `ui/assets`. On Windows, `ABRIR_FALCO_STUDIO.cmd` creates a sibling `ABRIR_FALCO_STUDIO.lnk` with the official icon; the shortcut opens the same launcher. Run the CMD again after moving the Factory folder to refresh shortcut paths. You can also create the shortcut directly with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/update-studio-shortcut.ps1`. Windows CMD files themselves use the shared system file-type icon.
+
 Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, loading reports an error and keeps the local files. Restart Studio and reload the browser after updating the Factory source.
 
 

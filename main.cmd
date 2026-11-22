@@ -2,6 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 title GTL AI - Falco Factory Studio
+if exist "%~dp0scripts\update-studio-shortcut.ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\update-studio-shortcut.ps1" -SetConsoleIcon >nul 2>&1
 
 echo.
 echo  ==================================================

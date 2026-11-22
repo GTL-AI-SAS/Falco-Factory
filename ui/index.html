@@ -4,8 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#090B0F" />
   <meta name="description" content="GTL AI Falco Factory — Create and deploy Cloudflare AI assistants." />
   <title>Falco Factory Studio v1.6.3 · GTL AI</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/assets/falco-app-icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="/styles.css" />
   <script defer src="/app.js"></script>
 </head>
@@ -13,8 +17,8 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand"><span class="brand-mark"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></span>
-          <div class="brand-word"><strong>Falco Factory</strong><small>GTL AI</small></div>
+        <div class="brand"><img class="brand-logo" src="/assets/falco-logo-compact.png" alt="FALCO" width="180" height="59" />
+          <span class="brand-caption">Factory Studio · GTL AI</span>
         </div>
         <button type="button" id="toggleSidebar" class="sidebar-toggle" aria-expanded="false" aria-controls="sidebarContent" aria-label="Toggle Studio sidebar"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>
       </div>
@@ -68,7 +72,7 @@
             <div class="hero-art" aria-hidden="true">
               <div class="hero-orbit orbit-outer"></div><div class="hero-orbit orbit-inner"></div>
               <i class="orbit-point"></i><i class="orbit-point second"></i>
-              <div class="hero-emblem"><div class="emblem-inset"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></div></div>
+              <div class="hero-emblem"><img src="/assets/falco-app-icon.svg" alt="" width="120" height="120" /></div>
               <i class="hero-registration top"></i><i class="hero-registration bottom"></i>
             </div>
           </header>
@@ -181,8 +185,8 @@
             <details class="preview-card side-panel" id="assistantPreviewPanel" open>
               <summary class="side-panel-summary"><h2>Assistant preview</h2><span class="tiny-tag">Simulated</span></summary>
               <div class="side-panel-body">
-              <div class="preview-brand"><div class="falco-avatar"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></div><div><h3 id="previewBusiness">Your business</h3><p>AI assistant powered by Falco</p></div></div>
-              <div class="preview-message"><span class="preview-message-avatar"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></span><div class="bubble" id="previewMessage">¡Hola! Soy Falco. ¿En qué puedo ayudarte?</div></div>
+              <div class="preview-brand"><div class="falco-avatar"><img src="/assets/falco-emblem.svg" alt="" width="37" height="37" /></div><div><h3 id="previewBusiness">Your business</h3><p>AI assistant powered by Falco</p></div></div>
+              <div class="preview-message"><span class="preview-message-avatar"><img src="/assets/falco-emblem.svg" alt="" width="24" height="24" /></span><div class="bubble" id="previewMessage">¡Hola! Soy Falco. ¿En qué puedo ayudarte?</div></div>
               </div>
             </details>
 
@@ -213,7 +217,7 @@
             <div class="hero-art" aria-hidden="true">
               <div class="hero-orbit orbit-outer"></div><div class="hero-orbit orbit-inner"></div>
               <i class="orbit-point"></i><i class="orbit-point second"></i>
-              <div class="hero-emblem"><div class="emblem-inset"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></div></div>
+              <div class="hero-emblem"><img src="/assets/falco-app-icon.svg" alt="" width="120" height="120" /></div>
               <i class="hero-registration top"></i><i class="hero-registration bottom"></i>
             </div>
           </header>
@@ -343,7 +347,7 @@
             <aside class="manage-aside">
               <details class="manage-info-card side-panel" id="selectedWorkerPanel" open>
                 <summary class="side-panel-summary"><h2>Selected Worker</h2></summary>
-                <div class="side-panel-body manage-identity-content"><div class="identity-orb"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 12 40 5 28 21l12 7-21 3-8 12 3-20L6 12Z" fill="currentColor"/><path d="m14 23 14-2-9 10-5-8Z" fill="#101f1d"/><circle cx="31" cy="13" r="2" fill="#101f1d"/></svg></div><h3 id="manageIdentityName">Choose a Falco</h3><p id="manageIdentitySub">Load a deployment or select a linked project.</p></div>
+                <div class="side-panel-body manage-identity-content"><div class="identity-orb"><img src="/assets/falco-emblem.svg" alt="" width="43" height="43" /></div><h3 id="manageIdentityName">Choose a Falco</h3><p id="manageIdentitySub">Load a deployment or select a linked project.</p></div>
               </details>
               <details class="manage-history-card side-panel" id="localSnapshotsPanel" open>
                 <summary class="side-panel-summary"><h2>Local snapshots</h2></summary>
@@ -368,7 +372,7 @@
           </div>
           
         </div>
-        <footer class="footer"><span>GTL AI · Falco Factory v1.6.3</span><span>Cloudflare Workers</span></footer>
+        <footer class="footer"><div class="footer-brand"><img src="/assets/falco-logo-dark.png" alt="FALCO" width="150" height="44" /><span>Factory Studio v1.6.3 · GTL AI</span></div><span>Cloudflare Workers</span></footer>
       </div>
     </main>
   </div>

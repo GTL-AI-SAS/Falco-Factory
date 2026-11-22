@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FALCO app icon">
+  <title>FALCO app icon</title>
+  <rect width="512" height="512" rx="112" fill="#090B0F"/>
+  <g transform="translate(128 128) scale(1.0)">
+    <path d="M78 36 A100 100 0 1 0 178 36" fill="none" stroke="#68E2C3" stroke-width="17"/>
+    <path d="M54 86 H120 C134 86 142 96 154 103 C169 111 181 119 190 136
+             C179 129 166 127 152 132 L82 157 L106 135 L139 123
+             C147 120 154 115 158 110 L145 106 L127 109
+             C100 110 72 104 54 86 Z" fill="#F3F4F6"/>
+    <path d="M81 160 L154 134 L101 188 L68 198 Z" fill="#F3F4F6"/>
+  </g>
+</svg>
