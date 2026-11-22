@@ -69,8 +69,8 @@ echo       El navegador se abrira automaticamente.
 echo       Auth segura: npm.cmd run falco:auth:secure
 echo       Si no se abre: http://127.0.0.1:4317
 echo.
-echo  IMPORTANTE: deja esta ventana abierta mientras uses Studio.
-echo  Para detenerlo, presiona Ctrl+C o cierra esta ventana.
+echo  Studio se detendra al cerrar su ultima pestana.
+echo  Si hay un despliegue en curso, esperara a que termine.
 echo.
 call npm.cmd run falco:ui
 if errorlevel 1 (
@@ -82,6 +82,7 @@ if errorlevel 1 (
 exit /b 0
 
 :failed
+if "%FALCO_STUDIO_BACKGROUND%"=="1" exit /b 1
 if /i "%~1"=="--check" exit /b 1
 echo.
 echo No se completo el inicio. Revisa los mensajes anteriores.

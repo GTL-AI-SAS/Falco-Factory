@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { once } from 'node:events';
 import { createUiServer } from '../../lib/ui-server.mjs';
 import { normalizeConfig } from '../../lib/args.mjs';
 import { generate } from '../../lib/generate.mjs';
@@ -17,14 +18,18 @@ const versionId = '11111111-1111-1111-1111-111111111111';
 const remote = { fingerprint: 'browser-live', detail: { deployment: versionId, versions: [{ id: versionId, percentage: 100 }] } };
 let deployedConfig;
 const chatRequests = [];
+let chatShouldFail = false;
 const noCost = async config => { deployedConfig = config; return { status:'deployed', url:status, secret:'not required' }; };
 const studio = createUiServer({ root: projectRoot, port: 0, runner: {
   managedPreflight: async () => {},
+  authDiagnostics: async () => ({ connected: true, factoryCompatible: true, accounts: [{ id: accountId, name: 'Browser account' }], selectedAccount: accountId }),
   session: async () => ({ accountId, token: 'browser-test' }),
   remoteReader: async () => remote,
   cloudWorkers: async () => ({ accountId, workers: [{ name }, { name: 'falco-remote-chat' }] }),
   workerEndpoint: async worker => `https://${worker.name}.demo.workers.dev/chat`,
-  chatFetch: async (url, options) => { chatRequests.push({ url, options }); return Response.json({ reply: 'Existing Falco chat works.', action: { id: 'demo.open', params: {} } }); },
+  chatFetch: async (url, options) => { chatRequests.push({ url, options }); return chatShouldFail
+    ? Response.json({ error: 'provider_rate_limited', message: 'Provider quota reached.' }, { status: 503 })
+    : Response.json({ reply: 'Existing Falco chat works.', action: { id: 'demo.open', params: {} } }); },
   readDeployedProject: async () => ({ vars: { BUSINESS_NAME: deployedConfig.business, PROVIDER: deployedConfig.provider,
     MODEL: deployedConfig.model, MOCK_REPLY: deployedConfig.mockReply }, origins: deployedConfig.origins,
     actions: deployedConfig.actions, knowledgeMode: 'embedded', knowledge: deployedConfig,
@@ -76,13 +81,32 @@ const browser = await chromium.launch({ ...(process.env.FALCO_CHROMIUM ? { execu
   args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
 try {
   const page = await browser.newPage({ viewport:{ width:375, height:660 }, reducedMotion:'reduce' });
+  await page.addInitScript(() => {
+    window.__soundStarts = 0;
+    const NativeAudioContext = window.AudioContext;
+    if (NativeAudioContext) window.AudioContext = class extends NativeAudioContext {
+      createOscillator() {
+        const oscillator = super.createOscillator();
+        const start = oscillator.start.bind(oscillator);
+        oscillator.start = (...args) => { window.__soundStarts++; return start(...args); };
+        return oscillator;
+      }
+    };
+  });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(ui);
+  assert.equal(await page.title(), 'Falco Studio');
   await page.locator('.brand-logo').evaluate(image => image.decode());
   assert.equal(await page.locator('.brand-logo').getAttribute('alt'), 'FALCO');
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--mint').trim()), '#68e2c3');
   assert.equal(await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href'), '/assets/falco-app-icon.svg');
+  assert.equal(await page.evaluate(() => window.__soundStarts), 0, 'page load does not autoplay audio');
+  await page.locator('#toggleSidebar').click();
+  await page.locator('#soundToggle').click();
+  assert.equal(await page.locator('#soundToggle').getAttribute('aria-pressed'), 'false');
+  await page.reload();
+  assert.equal(await page.locator('#soundToggle').getAttribute('aria-pressed'), 'false', 'mute persists after reload');
   for (const id of ['buildSummaryPanel', 'assistantPreviewPanel', 'consoleCard']) {
     const panel = page.locator('#' + id);
     await panel.locator(':scope > summary').click();
@@ -112,6 +136,12 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#workerChatDialog').evaluate(dialog => dialog.open), false);
+  assert.equal(await page.evaluate(() => window.__soundStarts), 0, 'muted chat responses stay silent');
+  await page.locator('#toggleSidebar').click();
+  await page.locator('#soundToggle').click();
+  await page.waitForFunction(() => window.__soundStarts > 0);
+  assert.equal(await page.locator('#soundToggle').getAttribute('aria-pressed'), 'true');
+  await page.locator('#toggleSidebar').click();
   await page.locator('.remote-worker-card').filter({ hasText: 'falco-remote-chat' }).getByRole('button', { name: 'Test chat' }).click();
   assert.equal(await page.locator('#workerChatReply').textContent(), '');
   assert.equal(await page.locator('#workerChatName').textContent(), 'falco-remote-chat');
@@ -120,7 +150,17 @@ try {
   await page.locator('#workerChatReply').getByText(/Existing Falco chat works/).waitFor();
   assert.equal(chatRequests[1].url, 'https://falco-remote-chat.demo.workers.dev/chat');
   assert.equal(studio.jobs.size, 0);
+  const notesBeforeError = await page.evaluate(() => window.__soundStarts);
+  chatShouldFail = true;
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#workerChatSend').click();
+  await page.locator('#workerChatReply').getByText(/Provider quota reached/).waitFor();
+  await page.waitForFunction(before => window.__soundStarts >= before + 3, notesBeforeError);
+  chatShouldFail = false;
   await page.locator('#closeWorkerChat').click();
+  const notesBeforeAccount = await page.evaluate(() => window.__soundStarts);
+  await page.locator('#refreshCloudWorkers').click();
+  await page.waitForFunction(before => window.__soundStarts >= before + 3, notesBeforeAccount);
   await page.locator('#manageProject').selectOption(name);
   await page.getByText('Browser Studio', { exact:true }).last().waitFor();
   await page.waitForFunction(() => document.querySelector('#manageFaq').value === 'Live knowledge from Cloudflare.');
@@ -150,10 +190,12 @@ try {
   assert.equal(await page.locator('#manageConsoleStatus').isVisible(), true);
   assert.equal(await page.locator('#manageConsoleBody').isVisible(), false);
   await page.locator('#manageActions').fill(JSON.stringify([{ id: 'demo.open', description: 'Open the selected live page', parameters: {} }]));
+  const notesBeforeDeployment = await page.evaluate(() => window.__soundStarts);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#saveDeploy').click();
   await page.waitForFunction(() => document.querySelector('#manageConsole').open);
   await page.waitForFunction(() => /READY|UPDATED/.test(document.querySelector('#manageConsoleStatus').textContent));
+  await page.waitForFunction(before => window.__soundStarts >= before + 4, notesBeforeDeployment);
   await page.waitForFunction(() => !document.querySelector('#manageEditorPanel').hidden && document.querySelector('#saveDeploy').disabled);
   assert.equal(await page.locator('#manageFaq').inputValue(), 'Live knowledge from Cloudflare.');
   assert.equal(await page.locator('#manageInstructions').inputValue(), 'Keep the live instructions.');
@@ -192,7 +234,34 @@ try {
   assert.equal(await page.locator('.falco__panel').isVisible(), false);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
-  console.log('Browser E2E passed (Studio, keyboard, mobile, action success/failure, privacy).');
+  const lifetimeStudio = createUiServer({ root: projectRoot, port: 0,
+    exitOnBrowserClose: { closeDelayMs: 300, startupTimeoutMs: 10000 },
+    runner: { cloudWorkers: async () => ({ accountId, workers: [] }), authDiagnostics: async () => ({ connected: false, accounts: [] }) }
+  });
+  try {
+    const lifetimeUrl = await lifetimeStudio.listen();
+    const tabs = await browser.newContext();
+    const firstTab = await tabs.newPage();
+    let connected = firstTab.waitForResponse(response => response.url().endsWith('/api/studio/session'));
+    await firstTab.goto(lifetimeUrl);
+    assert.equal((await connected).status(), 200);
+    const secondTab = await tabs.newPage();
+    connected = secondTab.waitForResponse(response => response.url().endsWith('/api/studio/session'));
+    await secondTab.goto(lifetimeUrl);
+    assert.equal((await connected).status(), 200);
+    connected = firstTab.waitForResponse(response => response.url().endsWith('/api/studio/session'));
+    await firstTab.reload();
+    assert.equal((await connected).status(), 200);
+    await firstTab.close();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.equal(lifetimeStudio.server.listening, true, 'another browser tab keeps Studio alive');
+    const stopped = once(lifetimeStudio.server, 'close');
+    await secondTab.close();
+    await stopped;
+    assert.equal(lifetimeStudio.server.listening, false, 'closing the last tab stops Studio');
+    await tabs.close();
+  } finally { await lifetimeStudio.close(); }
+  console.log('Browser E2E passed (Studio, keyboard, mobile, action success/failure, privacy, tab lifecycle).');
 } finally {
   await browser.close();
   await studio.close();

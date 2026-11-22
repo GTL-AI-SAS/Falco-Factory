@@ -114,7 +114,7 @@ test('existing Worker chat rejects invalid targets and messages and preserves Wo
 test('studio serves the frontend and blocks cross-origin mutation or requests missing token', async t => {
   const env = await withServer(t);
   const html = await (await fetch(env.url)).text();
-  assert.match(html, /Falco Factory Studio/);
+  assert.match(html, /<title>Falco Studio<\/title>/);
   assert.match(html, /Generate & deploy/);
   assert.match(html, /Authentication &amp; permissions/);
   assert.match(html, /copyAuthSecureCommand/);

@@ -6,7 +6,7 @@ import { VERSION, WRANGLER_VERSION } from '../lib/args.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const excludes = new Set(['.git','node_modules','.generated','.wrangler','.falco-operations','dist','coverage','test-results']);
-const includes = new Set(['.github','bin','examples','frontend-kit-template','lib','scripts','templates','tests','ui']);
+const includes = new Set(['.github','assets','bin','docs','examples','frontend-kit-template','lib','scripts','templates','tests','ui']);
 const selected = new Map();
 let packageLockCurrent = false;
 try {
@@ -24,7 +24,7 @@ async function addTree(directory = '') {
     if (excludes.has(file.name) || /^\.env|^\.dev\.vars|\.log$/.test(file.name)) continue;
     const relative = directory ? directory + '/' + file.name : file.name;
     if (file.isDirectory() && (directory || includes.has(file.name))) await addTree(relative);
-    else if (file.isFile() && (directory || /^(?:\.gitignore|package\.json|.*\.(?:md|txt|cmd))$/.test(file.name) || (file.name === 'package-lock.json' && packageLockCurrent))) {
+    else if (file.isFile() && (directory || file.name === 'Falco Studio.exe' || /^(?:\.gitignore|package\.json|.*\.(?:md|txt|cmd))$/.test(file.name) || (file.name === 'package-lock.json' && packageLockCurrent))) {
       selected.set(relative, await fs.readFile(path.join(root, relative)));
     }
   }

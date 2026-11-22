@@ -36,7 +36,7 @@ jobs:
           $zip = Get-ChildItem dist -Filter *.zip | Select-Object -First 1
           Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\Falco test release"
           Set-Location "$env:RUNNER_TEMP\Falco test release"
-          cmd.exe /d /c ABRIR_FALCO_STUDIO.cmd --check
+          cmd.exe /d /c main.cmd --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest' && matrix.node == 24

@@ -1,8 +1,9 @@
 FALCO FACTORY STUDIO v1.6.3
 
 1. Extrae el ZIP completo en una carpeta nueva.
-2. En Windows abre ABRIR_FALCO_STUDIO.cmd. Requiere Node.js 22.12.0 o superior. La primera apertura instala las dependencias con el lockfile de Wrangler 4.166.0 incluido.
-   Se crea ABRIR_FALCO_STUDIO.lnk en esta misma carpeta con el icono oficial de FALCO. Usa ese acceso directo para abrir Studio. Si mueves la carpeta, abre el .cmd una vez para actualizarlo.
+2. En Windows abre Falco Studio.exe: tiene el icono oficial de FALCO sin flecha de acceso directo. Si aun no existe, abre main.cmd una vez para crearlo. Manten el EXE junto a main.cmd dentro de la carpeta completa de Factory.
+   Requiere Node.js 22.12.0 o superior. La primera apertura instala las dependencias con el lockfile de Wrangler 4.166.0 incluido. El EXE abre el mismo lanzador; no modifica los iconos de Windows.
+   El EXE no abre una terminal visible. Al cerrar la ultima pestana de Studio, el servidor se detiene tras unos segundos; espera a que termine cualquier operacion en curso. El registro de inicio se guarda en .falco-operations\studio-launcher.log.
 3. En PowerShell, desde esta carpeta, ejecuta npm.cmd run falco:auth:secure para usar Wrangler OAuth con Windows Credential Manager.
 4. Ejecuta npm.cmd run falco:auth:status o abre Authentication & permissions en Studio para revisar método, almacenamiento y permisos de lectura.
 5. Manage Workers → Load Worker → revisa el estado remoto antes de modificar Workers existentes.
@@ -10,7 +11,8 @@ FALCO FACTORY STUDIO v1.6.3
 
 IMPORTANTE: el keyring de Wrangler protege OAuth, no variables CLOUDFLARE_API_TOKEN. Las comprobaciones de escritura no se ejecutan durante el diagnóstico para evitar mutaciones.
 
-Consulta RELEASE_NOTES_v1.6.3.md para los cambios de esta versión.
+Consulta docs/releases/RELEASE_NOTES_v1.6.3.md para los cambios de esta versión.
+Las guias de actualizacion estan en docs/upgrades y las decisiones de arquitectura en docs/architecture. El paquete original de marca esta en assets/brand.
 
 
 ## Verificación de despliegue v1.6.3
@@ -20,4 +22,4 @@ Consulta RELEASE_NOTES_v1.6.3.md para los cambios de esta versión.
 - La prueba opcional de Client Actions requiere Gemini/OpenAI, una acción configurada y un mensaje de prueba. Verifica la propuesta JSON; nunca ejecuta el handler de la web.
 - La prueba de Client Action usa una sola solicitud y también valida el chat.
 - Los estados distinguen `pass`, `failed`, `skipped`, `not_configured`, `not_authorized` y `unsupported_provider`.
-- Consulta `RELEASE_NOTES_v1.6.3.md` y `UPGRADE_v1.6.3.md` para detalles. Suite local: 129/129 pruebas.
+- Consulta `docs/releases/RELEASE_NOTES_v1.6.3.md` y `docs/upgrades/UPGRADE_v1.6.3.md` para detalles. Suite local: 129/129 pruebas.

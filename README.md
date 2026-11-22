@@ -2,9 +2,25 @@
 
 Falco Factory crea y administra un Worker Cloudflare por negocio. Studio incluye gestión de versiones locales y remotas, controles de consumo y exportación de kits de integración.
 
-Studio uses the supplied `FALCO_Option_04_Assets` identity: official logo and emblem, Mint `#68E2C3`, Near Black `#090B0F`, and Off White `#F3F4F6`. The deployed UI assets are bundled under `ui/assets`. On Windows, `ABRIR_FALCO_STUDIO.cmd` creates a sibling `ABRIR_FALCO_STUDIO.lnk` with the official icon; the shortcut opens the same launcher. Run the CMD again after moving the Factory folder to refresh shortcut paths. You can also create the shortcut directly with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/update-studio-shortcut.ps1`. Windows CMD files themselves use the shared system file-type icon.
+Studio uses the supplied [`FALCO_Option_04_Assets`](./assets/brand/FALCO_Option_04_Assets/) identity: official logo and emblem, Mint `#68E2C3`, Near Black `#090B0F`, and Off White `#F3F4F6`. The deployed UI assets are bundled under `ui/assets`. On Windows, use `Falco Studio.exe`: it embeds the official icon and has no shortcut arrow. It opens `main.cmd` from the same folder (or the legacy `ABRIR_FALCO_STUDIO.cmd`), so the complete Factory folder can be moved together. Build it with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-studio-launcher.ps1`; running the CMD also creates it if missing. This uses the Windows .NET Framework compiler and does not change file associations or shortcut overlays.
+
+The EXE runs Studio without a visible terminal. Startup output is saved to `.falco-operations/studio-launcher.log`; startup failures display a message pointing to that log. Closing the last Studio browser tab stops the local server after a short grace period, allowing reloads and waiting for any active deployment or management operation to finish. Other open Studio tabs keep it running. For a persistent development server, use `npm.cmd run falco:ui -- --no-open`; add `--exit-on-close` to enable browser-managed shutdown with a manually opened browser.
+
+Studio plays distinct, clearly audible cues when a Cloudflare account or Falco finishes loading, an operation completes, or a chat reply arrives. Validation errors, failed requests, and partial or failed operations have their own cues. Use **Sounds on/off** in the sidebar to mute them; this preference is remembered in the browser. Sounds are synthesized locally and require a user interaction first. Account changes and manual refreshes play a connection cue; routine background refreshes of the same account stay silent.
 
 Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, loading reports an error and keeps the local files. Restart Studio and reload the browser after updating the Factory source.
+
+## Project directories
+
+- [`docs/releases/`](./docs/releases/): release notes for each version.
+- [`docs/upgrades/`](./docs/upgrades/): upgrade guides.
+- [`docs/architecture/`](./docs/architecture/): architecture decisions and technical reference.
+- [`assets/brand/`](./assets/brand/): original FALCO identity assets and brand guidelines.
+- `ui/`: Studio interface and the assets served by its local server.
+- `bin/`, `lib/`, `scripts/`: command entry points, application logic, and launch/build tools.
+- `templates/`, `frontend-kit-template/`, `examples/`: Worker templates, website integration kit, and examples.
+- `tests/`: automated tests and fixtures.
+- `.generated/`, `.falco-operations/`: local Worker projects, snapshots, and operation history.
 
 
 ## v1.6.3 — Wrangler 4.166.0 and secure authentication
@@ -40,12 +56,12 @@ Local validation: `node --test ./tests/*.test.mjs` — **129 tests passed**. The
 - If a test is attempted and the provider fails or proposes the wrong action, Studio reports `failed` and marks verification incomplete. The deployment itself is not rolled back automatically.
 
 
-- **Windows:** extrae el ZIP completo y abre `ABRIR_FALCO_STUDIO.cmd`. Requiere Node.js 22.12.0 o superior.
+- **Windows:** extrae el ZIP completo y abre `Falco Studio.exe` o `main.cmd`. Requiere Node.js 22.12.0 o superior.
 - **Terminal:** en una extracción nueva ejecuta `npm ci`, después `npm run falco:doctor` y `npm run falco:ui`. En reinstalaciones posteriores puedes usar `npm ci`. Studio abre en `http://127.0.0.1:4317`.
 - **Workers existentes:** `Manage Workers → Load Worker → Releases, provider & operations → Review remote state`.
 - **Pruebas:** `npm test`, `npm run test:browser` y el smoke opcional de staging descrito en las notas.
 
-[Notas de v1.6 y correspondencia con el roadmap](./RELEASE_NOTES_v1.6.md) · [Referencia de v1.3](./RELEASE_NOTES_v1.3.md) · [ADR de conocimiento](./GTL_AI_Falco_Knowledge_Architecture_ADR_001.md).
+[Notas de v1.6 y correspondencia con el roadmap](./docs/releases/RELEASE_NOTES_v1.6.md) · [Referencia de v1.3](./docs/releases/RELEASE_NOTES_v1.3.md) · [ADR de conocimiento](./docs/architecture/GTL_AI_Falco_Knowledge_Architecture_ADR_001.md).
 
 Las instrucciones a continuación se conservan como referencia histórica. Para instalar o administrar esta versión, usa las instrucciones anteriores y las notas de v1.6.
 
@@ -97,7 +113,7 @@ Official references: [Cloudflare safe logging guidance](https://developers.cloud
 
 **Cloudflare Worker Factory + Lifecycle Manager + Neutral Frontend Kit + Optional Client Actions**
 
-**v1.1 release notes:** [RELEASE_NOTES_v1.1.md](./RELEASE_NOTES_v1.1.md). This builds on the confirmed v1.0 baseline (previously called v0.8).
+**v1.1 release notes:** [RELEASE_NOTES_v1.1.md](./docs/releases/RELEASE_NOTES_v1.1.md). This builds on the confirmed v1.0 baseline (previously called v0.8).
 
 v1.0 builds on v0.7 and adds required Windows launchers and a mandatory agent handoff contract to every frontend ZIP. v0.7 added **multiple allowed website origins per Worker**, editable in Create and Manage, plus **verified CORS metadata inside every frontend ZIP**. It retains create/deploy, discovery, one-click load, knowledge edits, local snapshots, delete and design-neutral kit export.
 
@@ -225,7 +241,7 @@ The automated test suite validates this build, including origin parsing, legacy 
 
 ## Project structure
 
-- `ABRIR_FALCO_STUDIO.cmd` — Windows launcher
+- `main.cmd` — Windows launcher; `Falco Studio.exe` opens it without a visible terminal.
 - `ui/` — Create/Manage/Export UI
 - `lib/ui-server.mjs` — local API; read-only ZIP export route
 - `lib/frontend-kit.mjs` + `lib/zip.mjs` — validated kit export and dependency-free ZIP

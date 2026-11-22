@@ -1,0 +1,60 @@
+{
+  "id": "af0aca70-f6b2-4c8f-8de5-5ad2079741b1",
+  "name": "falco-gallinas-gemini",
+  "mode": "deploy",
+  "operation": "update",
+  "status": "updated",
+  "createdAt": "2026-11-22T18:21:19.888Z",
+  "events": [
+    {
+      "stage": "preflight",
+      "at": "2026-11-22T18:21:19.900Z",
+      "message": "preflight"
+    },
+    {
+      "stage": "backup",
+      "at": "2026-11-22T18:21:32.623Z",
+      "message": "backup"
+    },
+    {
+      "stage": "cloudflare",
+      "at": "2026-11-22T18:21:45.617Z",
+      "message": "cloudflare"
+    },
+    {
+      "stage": "cloudflare",
+      "at": "2026-11-22T18:21:59.287Z",
+      "message": "cloudflare"
+    },
+    {
+      "stage": "cloudflare",
+      "at": "2026-11-22T18:21:59.287Z",
+      "message": "cloudflare"
+    },
+    {
+      "stage": "verify",
+      "at": "2026-11-22T18:21:59.287Z",
+      "message": "verify"
+    },
+    {
+      "stage": "done",
+      "at": "2026-11-22T18:22:01.253Z",
+      "message": "done"
+    }
+  ],
+  "verification": {
+    "health": true,
+    "cors": true,
+    "chat": null,
+    "action": null,
+    "healthStatus": "pass",
+    "corsStatus": "pass",
+    "chatStatus": "not_authorized",
+    "actionStatus": "not_authorized"
+  },
+  "url": "https://falco-gallinas-gemini.gtl-ai.workers.dev",
+  "backupId": "0c8cc379-339d-4a52-b276-9bf24fdebaa4",
+  "reason": null,
+  "elapsedMs": 41366,
+  "error": null
+}

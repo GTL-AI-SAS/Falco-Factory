@@ -64,4 +64,4 @@ npm.cmd run falco:new -- `
 - https://developers.cloudflare.com/kv/platform/pricing/
 - https://developers.cloudflare.com/fundamentals/api/reference/permissions/
 
-See `GTL_AI_Falco_Knowledge_Architecture_ADR_001.md` for GTL AI's suggested transition thresholds.
+See [the knowledge architecture ADR](../architecture/GTL_AI_Falco_Knowledge_Architecture_ADR_001.md) for GTL AI's suggested transition thresholds.

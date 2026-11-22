@@ -179,6 +179,10 @@ svg { display: block; }
 }
 .sidebar-note { margin: 8px 6px 0; color: var(--muted); font-size: 11px; }
 .sidebar-bottom { margin-top: auto; padding: 16px 0 12px; }
+.sound-toggle { width: 100%; margin-top: 10px; gap: 8px; }
+.sound-toggle[aria-pressed="true"] { color: var(--mint); }
+.sound-toggle .sound-muted, .sound-toggle[aria-pressed="false"] .sound-waves { display: none; }
+.sound-toggle[aria-pressed="false"] .sound-muted { display: block; }
 .connection-panel {
   display: flex;
   gap: 9px;

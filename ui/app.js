@@ -1,7 +1,14 @@
-/* Falco Factory Studio — local-only client. No third-party dependencies or storage. */
+import { createStudioSounds } from './sounds.js';
+
+/* Falco Factory Studio — local-only client. Only the sound preference is stored. */
 (() => {
   const $ = id => document.getElementById(id);
   const form = $('builderForm');
+  const sounds = createStudioSounds();
+  const soundedJobs = new Set();
+  let announcedCloudflareAccount = '';
+  let pendingAccountCue = false;
+  let cloudCheckSerial = 0;
   const models = { mock: 'mock-v1', openai: 'gpt-5.4-mini', gemini: 'gemini-3.5-flash-lite' };
   let token = '';
   let lastAutoName = '';
@@ -30,6 +37,10 @@
   let chatWorker = null;
   let chatRequestSerial = 0;
   let manageChatSerial = 0;
+  let sessionController;
+  let sessionRetry;
+  let pageLeaving = false;
+  let browserManaged = false;
   const enc = new TextEncoder();
   const byteLength = t => enc.encode(t).byteLength;
   const provider = () => form.querySelector('input[name="provider"]:checked').value;
@@ -50,11 +61,29 @@
     if (!response.ok) throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     return result;
   }
+  async function connectStudioSession() {
+    if (!browserManaged || pageLeaving || sessionController) return;
+    const control = new AbortController();
+    sessionController = control;
+    try {
+      const response = await fetch('/api/studio/session', { method: 'POST', cache: 'no-store', signal: control.signal,
+        headers: { 'X-Falco-Local-Token': token } });
+      if (!response.ok || !response.body) throw new Error('Studio session disconnected.');
+      const reader = response.body.getReader();
+      try { while (!(await reader.read()).done) { /* Keep this tab attached to Studio. */ } }
+      finally { reader.releaseLock(); }
+    } catch { /* A reload or temporary network loss reconnects within the grace period. */ }
+    finally {
+      if (sessionController === control) sessionController = null;
+      if (!pageLeaving) sessionRetry = setTimeout(connectStudioSession, 500);
+    }
+  }
   function slug(value) {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 53).replace(/-+$/,'');
   }
-  function setError(msg) {
+  function setError(msg, { notify = true } = {}) {
+    if (msg && notify && $('formError').textContent !== msg) sounds.play('error');
     $('formError').hidden = !msg;
     $('formError').textContent = msg || '';
     if (msg) $('formError').scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'nearest' });
@@ -230,6 +259,7 @@
       logLine(result.localExists ? 'Local project exists — replacement confirmation needed.' : 'Local project name available.', result.localExists ? 'warning' : 'success');
       logLine('Preview only. No files written or Cloudflare changes.', 'muted');
       consoleStatus('VALIDATED');
+      sounds.play('loaded');
       revealLog('consoleCard');
     } catch (err) { setError(err.message); consoleStatus('ERROR'); }
     finally { busy(false); }
@@ -271,7 +301,8 @@
       busy(false);
     }
   }
-  function setManageError(message) {
+  function setManageError(message, { notify = true } = {}) {
+    if (message && notify && $('manageError').textContent !== message) sounds.play('error');
     $('manageError').hidden = !message;
     $('manageError').textContent = message || '';
   }
@@ -299,8 +330,17 @@
     $('sidebarContent').classList.toggle('sidebar-open', open);
   }
   function cloudStatus(message, { error = false } = {}) {
+    if (error && $('remoteWorkerStatus').textContent !== message) sounds.play('error');
     $('remoteWorkerStatus').textContent = message;
     $('remoteWorkerStatus').classList.toggle('error', error);
+  }
+  function announceCloudflareAccount(accountId, { force = false } = {}) {
+    if (!/^[a-f0-9]{32}$/i.test(accountId || '')) return;
+    const key = accountId.toLowerCase();
+    if (!force && announcedCloudflareAccount === key) return;
+    announcedCloudflareAccount = key;
+    pendingAccountCue = sounds.enabled && !sounds.ready;
+    if (!pendingAccountCue) sounds.play('cloudflare');
   }
   function renderRemoteWorkers() {
     const list = $('remoteWorkerList');
@@ -381,6 +421,7 @@
       link.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
       cloudStatus(`${item.name}: frontend kit downloaded. Give the ZIP to your website agent. No Cloudflare changes were made.`);
+      sounds.play('success');
     } catch(err) {
       setManageError(err.message);
       cloudStatus(err.message, { error:true });
@@ -476,7 +517,7 @@
     $('linkTargetMessage').hidden = false;
     $('remoteSelection').scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'nearest' });
   }
-  async function refreshRemoteWorkers() {
+  async function refreshRemoteWorkers({ notify = false } = {}) {
     const requestId = ++remoteFetchSerial;
     remoteFetching = true;
     $('refreshCloudWorkers').disabled = true;
@@ -490,6 +531,7 @@
       if (requestId !== remoteFetchSerial) return;
       remoteRows = data.workers;
       remoteAccount = data.accountId;
+      announceCloudflareAccount(data.accountId, { force: notify });
       cloudStatus(`${remoteRows.length} deployed Worker${remoteRows.length===1?'':'s'} found · account ${remoteAccount.slice(0,6)}…${remoteAccount.slice(-4)} · refreshed ${new Date(data.checkedAt).toLocaleTimeString()}`);
       renderRemoteWorkers();
     } catch (err) {
@@ -603,7 +645,7 @@
       }
     } catch (err) { const row=document.createElement('div'); row.className='history-empty'; row.textContent=err.message; list.append(row); }
   }
-  async function loadManagedProject(folder, { force = false } = {}) {
+  async function loadManagedProject(folder, { force = false, notify = true } = {}) {
     if (!folder) {
       ++manageLoadSerial;
       ++manageChatSerial;
@@ -679,10 +721,11 @@
         $('runtimeUpgradeStatus').textContent = err.message;
       }
       await loadVersions();
+      if (requestId === manageLoadSerial && notify) sounds.play('loaded');
     } catch (err) {
       if (requestId !== manageLoadSerial) return;
       managed=null;
-      setManageError('Could not load the deployed configuration. ' + err.message);
+      setManageError('Could not load the deployed configuration. ' + err.message, { notify });
     }
   }
   async function loadProjects() {
@@ -1078,6 +1121,13 @@
       const label = job.readiness === 'ready' ? 'READY' : job.readiness ? job.status.toUpperCase() + ' · CHECKS PENDING' : job.status.toUpperCase();
       consoleStatus(label, isManage ? 'manageConsoleStatus' : 'consoleStatus', job.readiness === 'ready' ? 'ready' : job.status);
       if (finished) {
+        if (!soundedJobs.has(job.id)) {
+          soundedJobs.add(job.id);
+          if (soundedJobs.size > 30) soundedJobs.delete(soundedJobs.values().next().value);
+          const cue = job.status === 'failed' || job.status === 'interrupted' ? 'error' : job.status === 'partial' ? 'warning'
+            : successfulStatuses.includes(job.status) ? (job.status === 'checked' ? 'loaded' : 'success') : null;
+          if (cue) sounds.play(cue);
+        }
         window.clearInterval(pollHandle); pollHandle=null;
         $('cancelCreateJob').hidden = true; $('cancelManageJob').hidden = true;
         for (const item of verificationSummary(job.verification ?? {})) {
@@ -1085,13 +1135,13 @@
           logLine(text, item.tone, target);
         }
         if (isManage) {
-          if (managed) await loadManagedProject(managed.folder,{force:true});
-          if (['failed','partial','cancelled'].includes(job.status)) setManageError(job.error || 'Review the release log.');
+          if (managed) await loadManagedProject(managed.folder,{force:true,notify:false});
+          if (['failed','partial','cancelled'].includes(job.status)) setManageError(job.error || 'Review the release log.', { notify: false });
           if (job.url && managed?.name===job.name) { $('manageLiveUrl').href=job.url+'/health'; $('manageLiveLinks').hidden=false; }
           await loadProjects();
         } else {
           busy(false);
-          if (job.status==='failed'||job.status==='partial') setError(job.error||'Build failed');
+          if (job.status==='failed'||job.status==='partial') setError(job.error||'Build failed', { notify: false });
           if (job.url) { $('workerLink').href=job.url+'/health'; $('workerLink').textContent='Open live /health ↗︎'; $('resultLinks').hidden=false; $('testChat').hidden=false; }
           if (job.status==='generated'||job.status==='deployed') void loadProjects();
         }
@@ -1117,11 +1167,13 @@
     set('authWriteValue', 'Deployment and KV writes are not tested by diagnostics', '');
     $('authRecommendation').textContent = status.recommendation || 'No additional recommendation.';
   }
-  async function checkCloudflare() {
+  async function checkCloudflare({ manual = false } = {}) {
+    const requestId = ++cloudCheckSerial;
     try {
       const selected = $('accountId')?.value.trim() || $('remoteAccountSelect')?.value || '';
       const suffix = selected && /^[a-f0-9]{32}$/i.test(selected) ? `?accountId=${encodeURIComponent(selected)}` : '';
       const status = await api('/api/cloudflare' + suffix);
+      if (requestId !== cloudCheckSerial) return;
       $('cloudflareDot').className = status.connected && status.factoryCompatible ? 'status-light online' : 'status-light offline';
       $('cloudflareState').textContent = status.connected ? (status.factoryCompatible ? 'Cloudflare connected' : 'Authentication needs attention') : 'Cloudflare not connected';
       const storageShort = status.secureStorage ? 'keychain protected' : status.authMethod === 'api_token' ? 'API token' : 'storage not protected';
@@ -1129,7 +1181,18 @@
       if (status.selectedAccount && !$('accountId').value) $('accountId').value = status.selectedAccount;
       populateCloudAccounts(status);
       renderAuthDiagnostics(status);
+      if (status.connected && status.factoryCompatible) {
+        announceCloudflareAccount(status.selectedAccount || (status.accounts.length === 1 ? status.accounts[0].id : ''), { force: manual });
+      } else {
+        announcedCloudflareAccount = '';
+        pendingAccountCue = false;
+        if (manual) sounds.play('error');
+      }
     } catch (error) {
+      if (requestId !== cloudCheckSerial) return;
+      announcedCloudflareAccount = '';
+      pendingAccountCue = false;
+      sounds.play('error');
       $('cloudflareDot').className = 'status-light offline';
       $('cloudflareState').textContent = 'Cloudflare status unknown';
       $('cloudflareSub').textContent = 'Check Wrangler installation';
@@ -1173,7 +1236,8 @@
     try {
       const data = await api(`/api/jobs/${activeJobId}/chat`, { method: 'POST', data: { message: question } });
       $('testReply').textContent = `Falco: ${data.reply}` + (data.action ? `\nProposed action (preview only, not executed in Studio): ${JSON.stringify(data.action)}` : '');
-    } catch (err) { $('testReply').textContent = err.message; }
+      sounds.play('reply');
+    } catch (err) { $('testReply').textContent = err.message; sounds.play('error'); }
     finally { button.disabled = false; }
   }
   function openWorkerChat(item) {
@@ -1199,8 +1263,9 @@
       const data = await api('/api/cloudflare/workers/chat', { method: 'POST', data: { accountId: worker.accountId, name: worker.name, message } });
       if (requestId !== chatRequestSerial) return;
       $('workerChatReply').textContent = 'Falco: ' + data.reply + (data.action ? `\nProposed action (preview only): ${JSON.stringify(data.action)}` : '');
+      sounds.play('reply');
     } catch (error) {
-      if (requestId === chatRequestSerial) $('workerChatReply').textContent = error.message;
+      if (requestId === chatRequestSerial) { $('workerChatReply').textContent = error.message; sounds.play('error'); }
     } finally {
       if (requestId === chatRequestSerial) $('workerChatSend').disabled = false;
     }
@@ -1218,10 +1283,46 @@
       const reply=await api('/api/cloudflare/workers/chat',{method:'POST',data:{accountId:project.accountId,name:project.name,message:question}});
       if (managed !== project || requestId !== manageChatSerial) return;
       $('manageTestReply').textContent='Falco: '+reply.reply+(reply.action ? `\nProposed action (preview only): ${JSON.stringify(reply.action)}` : '');
-    } catch(err) { if (managed === project && requestId === manageChatSerial) $('manageTestReply').textContent=err.message; }
+      sounds.play('reply');
+    } catch(err) { if (managed === project && requestId === manageChatSerial) { $('manageTestReply').textContent=err.message; sounds.play('error'); } }
     finally { if (managed === project && requestId === manageChatSerial) button.disabled=false; }
   }
   function listen() {
+    const renderSoundPreference = () => {
+      $('soundToggle').setAttribute('aria-pressed', String(sounds.enabled));
+      const label = sounds.enabled ? 'Mute interface sounds' : 'Enable interface sounds';
+      $('soundToggle').title = label;
+      $('soundLabel').textContent = sounds.enabled ? 'Sounds on' : 'Sounds off';
+    };
+    renderSoundPreference();
+    const unlockAudio = async event => {
+      if (!event.isTrusted) return;
+      await sounds.unlock();
+      if (pendingAccountCue && sounds.enabled && !pageLeaving) {
+        pendingAccountCue = false;
+        sounds.play('cloudflare');
+      }
+    };
+    document.addEventListener('pointerdown', unlockAudio, { passive: true });
+    document.addEventListener('keydown', unlockAudio);
+    $('soundToggle').addEventListener('click', async () => {
+      sounds.setEnabled(!sounds.enabled);
+      if (!sounds.enabled) pendingAccountCue = false;
+      renderSoundPreference();
+      if (sounds.enabled) { await sounds.unlock(); sounds.play('loaded'); }
+    });
+    window.addEventListener('storage', event => {
+      if (event.key !== sounds.storageKey && event.key !== null) return;
+      sounds.setEnabled(event.key === null || event.newValue !== 'off', { persist: false });
+      if (!sounds.enabled) pendingAccountCue = false;
+      renderSoundPreference();
+    });
+    window.addEventListener('pagehide', () => {
+      pageLeaving = true;
+      clearTimeout(sessionRetry);
+      sessionController?.abort();
+    });
+    window.addEventListener('pageshow', () => { pageLeaving = false; void connectStudioSession(); });
     $('workerChatForm').addEventListener('submit', event => { event.preventDefault(); void sendWorkerChat(); });
     $('closeWorkerChat').addEventListener('click', () => $('workerChatDialog').close());
     $('workerChatDialog').addEventListener('close', () => { ++chatRequestSerial; chatWorker = null; });
@@ -1274,7 +1375,7 @@
     $('createNav').addEventListener('click', () => switchMode('create'));
     $('manageNav').addEventListener('click', () => switchMode('manage'));
     $('manageProject').addEventListener('change', () => void loadManagedProject($('manageProject').value));
-    $('refreshCloudWorkers').addEventListener('click', () => void refreshRemoteWorkers());
+    $('refreshCloudWorkers').addEventListener('click', () => void refreshRemoteWorkers({ notify: true }));
     $('remoteAccountSelect').addEventListener('change', () => void refreshRemoteWorkers());
     $('remoteAccountManual').addEventListener('change', () => void refreshRemoteWorkers());
     $('remoteLinkButton').addEventListener('click', () => { $('importPanel').open = true; $('importPath').focus(); $('importPanel').scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'nearest' }); });
@@ -1298,8 +1399,8 @@
     $('testMessage').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void testChat(); } });
     form.addEventListener('submit', event => event.preventDefault());
     const bind = (id, action, output = setManageError) => $(id).addEventListener('click', () =>
-      Promise.resolve().then(action).catch(error => output(error.message)));
-    bind('refreshAuthDiagnostics', checkCloudflare, message => { $('authRecommendation').textContent = message; });
+      Promise.resolve().then(action).catch(error => { sounds.play('error'); output(error.message); }));
+    bind('refreshAuthDiagnostics', () => checkCloudflare({ manual: true }), message => { $('authRecommendation').textContent = message; });
     bind('copyAuthSecureCommand', async () => {
       await navigator.clipboard.writeText('npm.cmd run falco:auth:secure');
       $('authRecommendation').textContent = 'Copied: npm.cmd run falco:auth:secure. Run it in PowerShell from the Falco Factory folder.';
@@ -1407,6 +1508,8 @@
     try {
       const boot = await api('/api/bootstrap');
       token = boot.token;
+      browserManaged = boot.exitOnBrowserClose === true;
+      void connectStudioSession();
       Object.assign(models, boot.defaultModels);
       void loadProjects();
       void checkCloudflare();

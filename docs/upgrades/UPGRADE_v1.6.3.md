@@ -8,7 +8,7 @@ The safest upgrade is to extract v1.6.3 into a new folder.
 2. Copy the old Factory root's `.generated` folder into the new Factory root. Each generated Worker folder contains its local source, snapshots, and `.falco-deployments.json` baseline.
 3. Optionally copy `.falco-operations` if you want to retain the local operation history.
 4. Do not copy `node_modules`. Run `npm.cmd ci` in the new folder.
-5. Open `ABRIR_FALCO_STUDIO.cmd`.
+5. Open `Falco Studio.exe` or `main.cmd` in the new Factory folder.
 
 Wrangler authentication is global to the Windows user profile; do not copy Wrangler credential files into the project.
 
