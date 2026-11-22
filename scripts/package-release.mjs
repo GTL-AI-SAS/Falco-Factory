@@ -25,7 +25,8 @@ async function addTree(directory = '') {
     const relative = directory ? directory + '/' + file.name : file.name;
     if (file.isDirectory() && (directory || includes.has(file.name))) await addTree(relative);
     else if (file.isFile() && (directory || file.name === 'Falco Studio.exe' || /^(?:\.gitignore|package\.json|.*\.(?:md|txt|cmd))$/.test(file.name) || (file.name === 'package-lock.json' && packageLockCurrent))) {
-      selected.set(relative, await fs.readFile(path.join(root, relative)));
+      const content = await fs.readFile(path.join(root, relative));
+      selected.set(relative, file.name.endsWith('.cmd') ? content.toString('utf8').replace(/\r\n|\r|\n/g, '\r\n') : content);
     }
   }
 }

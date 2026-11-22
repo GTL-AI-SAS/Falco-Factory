@@ -145,6 +145,24 @@ test('exported launcher contract demands a CMD in the final client repo and brow
   }
 });
 
+test('frontend export normalizes Windows launcher line endings from any checkout', async t => {
+  const templateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'falco-kit-eol-'));
+  t.after(() => fs.rm(templateDir, { recursive: true, force: true }));
+  await fs.cp(new URL('../frontend-kit-template/', import.meta.url), templateDir, { recursive: true });
+  const launchers = ['ABRIR_FALCO_KIT.cmd', 'integration/ABRIR_DEMO.cmd'];
+  const sources = new Map(await Promise.all(launchers.map(async name => [name,
+    (await fs.readFile(path.join(templateDir, name), 'utf8')).replace(/\r\n|\r/g, '\n')])));
+  for (const ending of ['\n', '\r\n', '\r']) {
+    for (const [name, source] of sources) await fs.writeFile(path.join(templateDir, name), source.replace(/\n/g, ending));
+    const kit = await createFrontendKit({ name: WORKER, endpoint: ENDPOINT, allowedOrigins: ['http://localhost:3000'] }, { templateDir });
+    const files = unzipBuffer(kit.bytes);
+    for (const [name, source] of sources) {
+      assert.equal(files.get(name), source.replace(/\n/g, '\r\n'), name);
+      assert.equal(await fs.readFile(path.join(templateDir, name), 'utf8'), source.replace(/\n/g, ending), 'export leaves source files unchanged');
+    }
+  }
+});
+
 test('copy-ready local static server serves only site files over HTTP and never secrets', async t => {
   const site = await fs.mkdtemp(path.join(os.tmpdir(), 'falco-web-site-'));
   await fs.mkdir(path.join(site,'assets'));
