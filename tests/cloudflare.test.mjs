@@ -112,6 +112,17 @@ test('linking a remote Worker refuses a source with wrong Worker name or account
   assert.equal((await fs.readFile(path.join(source,'wrangler.json'),'utf8')).includes(ID),true);
 });
 
+
+test('Cloudflare auth diagnostics endpoint returns safe metadata only',async t=>{
+  const e=await makeServer(t);
+  // The default endpoint is allowed to report unauthenticated state without leaking raw Wrangler output.
+  const r=await e.get('/api/cloudflare');
+  assert.equal(r.status,200);
+  assert.equal(typeof r.body.connected,'boolean');
+  assert.ok(r.body.permissions);
+  assert.ok(!JSON.stringify(r.body).includes('token'));
+});
+
 test('merger isolates Workers from separate accounts',()=>{
   const linked={name:'falco-one',folder:'falco-one',accountId:ID,business:'Alpha',provider:'mock'};
   const list=[{name:'falco-one'}];

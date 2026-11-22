@@ -1,6 +1,7 @@
+import { providerUsage } from '../operations.mjs';
 import { ProviderError, postJson, assertUsableOutput } from './shared.mjs';
 
-export async function geminiProvider({ env, instructions, history, message, fetcher = fetch }) {
+export async function geminiProvider({ env, instructions, history, message, report, fetcher = fetch }) {
   if (!env.GEMINI_API_KEY) throw new ProviderError('provider_not_configured', 503);
   const contents = [...history.map(({role, content}) => ({ role: role === 'assistant' ? 'model' : 'user', parts: [{ text: content }] })),
     { role: 'user', parts: [{ text: message }] }];
@@ -16,6 +17,7 @@ export async function geminiProvider({ env, instructions, history, message, fetc
     body: JSON.stringify({ systemInstruction: { parts: [{ text: instructions }] }, contents: normalized,
       generationConfig: { maxOutputTokens: 512, temperature: 0.4 } })
   }, fetcher);
+  providerUsage(data, env.PROVIDER, report);
   const output = data?.candidates?.[0]?.content?.parts?.filter(p => typeof p.text === 'string').map(p => p.text).join('') || '';
   return assertUsableOutput(output, { finishReason: data?.candidates?.[0]?.finishReason });
 }

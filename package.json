@@ -1,11 +1,11 @@
 {
   "name": "@gtl-ai/falco-factory",
   "private": true,
-  "version": "1.2.0",
-  "description": "Falco Factory Studio: Client Actions with safe provider diagnostics, correlation IDs and guarded runtime upgrades",
+  "version": "1.6.3",
+  "description": "Falco Factory Studio with secure Wrangler auth diagnostics",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "bin": {
     "falco": "./bin/falco.mjs"
@@ -15,9 +15,17 @@
     "falco:ui": "node ./bin/falco-ui.mjs",
     "falco:smoke": "node ./bin/falco.mjs smoke",
     "test": "node --test ./tests/*.test.mjs",
-    "test:worker": "node --test ./tests/worker.test.mjs ./tests/providers.test.mjs"
+    "test:worker": "node --test ./tests/worker.test.mjs ./tests/providers.test.mjs",
+    "falco:doctor": "node ./bin/falco.mjs doctor",
+    "test:browser": "node ./tests/e2e/browser.mjs",
+    "test:staging": "node ./tests/e2e/staging.mjs",
+    "release": "node ./scripts/package-release.mjs",
+    "test:worker-e2e": "node ./tests/e2e/worker.mjs",
+    "falco:auth:secure": "node ./bin/falco.mjs auth secure",
+    "falco:auth:status": "node ./bin/falco.mjs auth status"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0"
+    "playwright": "1.62.1",
+    "wrangler": "4.166.0"
   }
 }

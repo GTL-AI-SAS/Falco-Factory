@@ -111,6 +111,9 @@ test('existing v1.0 Worker can enable actions with code backup, preserve keys an
  const original=await fs.readFile('tests/fixtures/v1.0-worker-index.mjs.txt','utf8');
  await fs.writeFile(indexFile,original);
  await fs.rm(path.join(conf.output,'src/client-actions.mjs'));
+ // Reproduce the actual legacy runtime mismatch: the v1.1 shared provider
+ // module lacks exports consumed by the v1.6 Client Actions runtime.
+ await fs.copyFile('tests/fixtures/v1.1/src/providers/shared.mjs',path.join(conf.output,'src/providers/shared.mjs'));
  const p=await readProject(root,'falco-actions-legacy');
  assert.equal((await prepareActionUpgrade(p,GALLINAS_ACTIONS)).upgrade,true);
  assert.equal(previewChanges(p,{faq:p.faq,instructions:p.instructions,actions:GALLINAS_ACTIONS}).actionsChanged,true);
@@ -126,6 +129,9 @@ test('existing v1.0 Worker can enable actions with code backup, preserve keys an
  const upgraded=await readProject(root,p.folder);
  assert.deepEqual(upgraded.actions,GALLINAS_ACTIONS);
  assert.match(await fs.readFile(indexFile,'utf8'),/askActionProvider/);
+ const repairedShared=await fs.readFile(path.join(conf.output,'src/providers/shared.mjs'),'utf8');
+ assert.match(repairedShared,/export function assertUsableOutput/);
+ assert.match(repairedShared,/export function providerFailurePayload/);
  assert.equal((await fs.readFile(path.join(conf.output,'wrangler.json'),'utf8')).includes('GEMINI_API_KEY'),false);
  assert.equal((await listVersions(upgraded)).length,1);
  assert.equal(await fs.readFile(path.join(conf.output,'.falco-history',`${job.backupId}.action-pre-upgrade-index.mjs`),'utf8'),original);
@@ -134,7 +140,50 @@ test('existing v1.0 Worker can enable actions with code backup, preserve keys an
  job=await poll(response.body.job.id);
  assert.equal(job.status,'restored',job.error);
  const restored=await readProject(root,p.folder);
- assert.deepEqual(restored.actions,[]);
+ assert.deepEqual(restored.actions,GALLINAS_ACTIONS);
+ response=await request({mode:'restore-config',folder:p.folder,revision:restored.revision,versionId:snapshot,confirmName:p.name,acknowledge:'RESTORE CONFIG'});
+ job=await poll(response.body.job.id);
+ assert.equal(job.status,'restored',job.error);
+ assert.deepEqual((await readProject(root,p.folder)).actions,[]);
+});
+
+test('knowledge-only update repairs a recognized stale provider shared module before deployment',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'falco-provider-compat-'));
+ t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const conf=normalizeConfig({name:'falco-provider-compat',business:'Gallinas y Valientes',provider:'gemini',origin:'http://localhost:3000','account-id':ACCOUNT},root);
+ conf.faq='FAQ anterior'; conf.instructions='Instrucciones'; conf.actions=GALLINAS_ACTIONS;
+ await generate(conf);
+ const sharedFile=path.join(conf.output,'src/providers/shared.mjs');
+ await fs.copyFile('tests/fixtures/v1.1/src/providers/shared.mjs',sharedFile);
+ const p=await readProject(root,'falco-provider-compat');
+ const app=createUiServer({root,port:0,runner:{
+   managedPreflight:async()=>{},
+   deploy:async()=>({status:'deployed',url:'https://falco-provider-compat.gtl-ai.workers.dev',secret:'preserved'}),
+   smoke:async()=>({health:true})
+ }});
+ const host=await app.listen();t.after(()=>app.close());
+ const boot=await(await fetch(host+'/api/bootstrap')).json();
+ const request=async(data)=>{
+   const r=await fetch(host+'/api/jobs',{method:'POST',headers:{'Content-Type':'application/json','X-Falco-Local-Token':boot.token,Origin:host},body:JSON.stringify(data)});
+   return {status:r.status,body:await r.json()};
+ };
+ const poll=async id=>{
+   for(let i=0;i<120;i++){
+     const r=await(await fetch(host+'/api/jobs/'+id)).json();
+     if(['updated','restored','failed','partial'].includes(r.job.status))return r.job;
+     await new Promise(ok=>setTimeout(ok,12));
+   }
+   throw Error('Timed out');
+ };
+ const response=await request({mode:'update',folder:p.folder,revision:p.revision,faq:'FAQ actualizado con una nueva línea',instructions:p.instructions,origins:p.origins,actions:GALLINAS_ACTIONS});
+ assert.equal(response.status,202);
+ const job=await poll(response.body.job.id);
+ assert.equal(job.status,'updated',job.error);
+ const repaired=await fs.readFile(sharedFile,'utf8');
+ assert.match(repaired,/export function assertUsableOutput/);
+ assert.match(repaired,/export function providerFailurePayload/);
+ const backups=await fs.readdir(path.join(conf.output,'.falco-history'));
+ assert.ok(backups.some(name=>name.endsWith('.provider-runtime')));
 });
 
 test('customized legacy handler fails closed before any source overwrite',async t=>{

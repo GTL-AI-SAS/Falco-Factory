@@ -12,16 +12,12 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Push-Location $root
 try {
   Write-Host 'FALCO FACTORY - Windows First Deployment'
-  & npm.cmd install
+  & npm.cmd install --no-audit --no-fund
   if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
   & npm.cmd test
   if ($LASTEXITCODE -ne 0) { throw 'npm test failed' }
-  & npx.cmd wrangler whoami
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host 'Cloudflare authentication required; opening official Wrangler login...'
-    & npx.cmd wrangler login
-    if ($LASTEXITCODE -ne 0) { throw 'Wrangler login failed' }
-  }
+  & npm.cmd run falco:auth:secure
+  if ($LASTEXITCODE -ne 0) { throw 'Secure Wrangler authentication failed' }
   $args = @('run', 'falco:new', '--', '--name', $Name, '--business', $Business,
     '--provider', $Provider, '--origin', $Origin,
     '--faq', '.\examples\gallinas\faq.md', '--instructions', '.\examples\gallinas\instructions.md', '--deploy')

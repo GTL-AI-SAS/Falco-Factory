@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { VERSION } from '../lib/args.mjs';
 import { createUiServer } from '../lib/ui-server.mjs';
 
 function options(args) {
@@ -26,7 +27,18 @@ try {
   const opts = options(process.argv.slice(2));
   const app = createUiServer({ port: opts.port });
   const url = await app.listen();
-  console.log(`\nFALCO FACTORY STUDIO v1.2\n\nLocal UI: ${url}\nCloudflare deployments still use Wrangler.\nSecrets remain in memory and are passed to Wrangler via stdin.\nThis server listens on 127.0.0.1 only. Press Ctrl+C to stop.\n`);
+  console.log(`\nFALCO FACTORY STUDIO v${VERSION}\n\nLocal UI: ${url}\nCloudflare deployments still use Wrangler.\nCloudflare stores provider credentials as Worker secrets.\nThis server listens on 127.0.0.1 only. Press Ctrl+C to stop.\n`);
+  let closing = false;
+  const stop = () => {
+    if (closing) return;
+    closing = true;
+    void app.close().catch(error => {
+      console.error('Falco Studio shutdown: ' + error.message);
+      process.exitCode = 1;
+    });
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
   if (opts.open) openBrowser(url);
 } catch (err) {
   console.error(`Falco Studio: ${err.message}`);

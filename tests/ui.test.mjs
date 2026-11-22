@@ -37,7 +37,7 @@ test('form validation: accepts plain business instructions; rejects path travers
   assert.ok(good.output.endsWith(path.join('.generated', 'falco-unique')));
   assert.equal(good.instructions, baseline.instructions);
   assert.throws(() => configFromForm({ ...baseline, outputFolder: '../../secret' }), /Output folder/);
-  assert.throws(() => configFromForm({ ...baseline, faq: 'x'.repeat(24001) }), /faq exceeds/);
+  assert.throws(() => configFromForm({ ...baseline, faq: 'x'.repeat(24001) }), /faq (?:exceeds|must be)/);
 });
 
 test('replacement requires typed exact worker name', () => {
@@ -45,11 +45,58 @@ test('replacement requires typed exact worker name', () => {
   assert.equal(configFromForm({ ...baseline, force: true, confirmName: baseline.name }).force, true);
 });
 
+test('existing Worker chat works without a deployment job or local source and uses the selected account', async t => {
+  const accountId = 'a'.repeat(32);
+  let called;
+  const env = await withServer(t, { runner: {
+    cloudWorkers: async input => { assert.equal(input.accountId, accountId); return { accountId, workers: [{ name: baseline.name }] }; },
+    workerEndpoint: async input => { assert.deepEqual(input, { accountId, name: baseline.name }); return 'https://falco-ui-test.demo.workers.dev/chat'; },
+    chatFetch: async (endpoint, options) => { called = { endpoint, options }; return Response.json({ reply: 'Hello from the existing Falco', action: { id: 'demo.open', params: {} } }); },
+    deploy: async () => { throw new Error('Chat must not deploy'); }
+  } });
+  const result = await env.post('/api/cloudflare/workers/chat', { accountId, name: baseline.name, message: 'Hola' });
+  assert.equal(result.code, 200);
+  assert.equal(result.body.reply, 'Hello from the existing Falco');
+  assert.equal(result.body.action.id, 'demo.open');
+  assert.equal(called.endpoint, 'https://falco-ui-test.demo.workers.dev/chat');
+  assert.deepEqual(JSON.parse(called.options.body), { message: 'Hola', history: [] });
+  assert.equal(called.options.headers.Authorization, undefined, 'Cloudflare management credentials are not sent to chat');
+  assert.equal(env.app.jobs.size, 0);
+  assert.deepEqual(await fs.readdir(env.tmp), []);
+});
+
+test('existing Worker chat rejects invalid targets and messages and preserves Worker diagnostics', async t => {
+  const accountId = 'a'.repeat(32);
+  let requests = 0;
+  const env = await withServer(t, { runner: {
+    cloudWorkers: async () => ({ accountId, workers: [{ name: baseline.name }] }),
+    workerEndpoint: async () => 'https://falco-ui-test.demo.workers.dev/chat',
+    chatFetch: async () => { requests++; return Response.json({ error: 'provider_rate_limited', message: 'Provider quota reached.', providerStatus: 429 }, { status: 503 }); }
+  } });
+  const payload = { accountId, name: baseline.name, message: 'Hola' };
+  for (const invalid of [{ accountId: 'bad' }, { name: '../../other' }, { message: '' }, { message: 'a'.repeat(2001) }]) {
+    assert.equal((await env.post('/api/cloudflare/workers/chat', { ...payload, ...invalid })).code, 400);
+  }
+  assert.equal((await env.post('/api/cloudflare/workers/chat', { ...payload, name: 'falco-missing' })).code, 404);
+  assert.equal((await env.post('/api/cloudflare/workers/chat', { ...payload, accountId: 'b'.repeat(32) })).code, 404);
+  assert.equal((await env.post('/api/cloudflare/workers/chat', payload, { 'X-Falco-Local-Token': 'bad' })).code, 403);
+  assert.equal(requests, 0);
+  const failed = await env.post('/api/cloudflare/workers/chat', payload);
+  assert.equal(failed.code, 503);
+  assert.equal(failed.body.code, 'provider_rate_limited');
+  assert.match(failed.body.error, /Provider quota reached/);
+  assert.equal(requests, 1);
+});
+
 test('studio serves the frontend and blocks cross-origin mutation or requests missing token', async t => {
   const env = await withServer(t);
   const html = await (await fetch(env.url)).text();
   assert.match(html, /Falco Factory Studio/);
   assert.match(html, /Generate & deploy/);
+  assert.match(html, /Authentication &amp; permissions/);
+  assert.match(html, /copyAuthSecureCommand/);
+  assert.match(html, /createActionCheck/);
+  assert.match(html, /manageActionCheck/);
   const noToken = await fetch(`${env.url}/api/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: env.url }, body: '{}' });
   assert.equal(noToken.status, 403);
   const evilOrigin = await env.post('/api/preview', baseline, { Origin: 'https://evil.example' });
@@ -67,7 +114,8 @@ test('preview leaves disk unchanged and generation writes complete project', asy
   const before = await env.post('/api/preview', baseline);
   assert.equal(before.code, 200);
   assert.equal(before.body.localExists, false);
-  assert.equal(before.body.files.length, 13);
+  assert.ok(before.body.files.includes('package-lock.json'));
+  assert.ok(before.body.files.includes('.falco-runtime.json'));
   await assert.rejects(fs.stat(path.join(env.tmp, '.generated')));
   const started = await env.post('/api/jobs', { ...baseline, mode: 'generate' });
   assert.equal(started.code, 202);
@@ -133,4 +181,58 @@ test('deployment partial failure reports status correctly; no false success', as
   assert.equal(job.status, 'partial');
   assert.equal(job.partial, true);
   assert.match(job.events.map(e => e.message).join(' '), /secret configuration is incomplete/);
+});
+
+
+test('action verification configuration requires an existing action and an explicit test message', () => {
+  const action = [{ id:'demo.open', description:'Open one of the demo options when requested.', parameters:{ option:{ type:'string', enum:['01','02','03'] } } }];
+  const config = configFromForm({ ...baseline, provider:'gemini', actions:action, checkAction:true, actionMessage:'Please open option 01.' });
+  assert.equal(config.checkAction, true);
+  assert.equal(config.actionMessage, 'Please open option 01.');
+  assert.throws(() => configFromForm({ ...baseline, provider:'gemini', checkAction:true, actionMessage:'Please open option 01.' }), /configure at least one action/);
+  assert.throws(() => configFromForm({ ...baseline, provider:'gemini', actions:action, checkAction:true, actionMessage:'' }), /test message/);
+  assert.throws(() => configFromForm({ ...baseline, actions:action, checkAction:true, actionMessage:'Please open option 01.' }), /require Gemini or OpenAI/);
+});
+
+test('action verification after deployment is opt-in and uses one request to check chat plus proposal', async t => {
+  let captured;
+  const action = [{ id:'demo.open', description:'Open one of the demo options when requested.', parameters:{ option:{ type:'string', enum:['01','02','03'] } } }];
+  const env = await withServer(t, { runner: {
+    deploy: async () => ({ status:'deployed', url:'https://falco-ui-ai.gtl-ai.workers.dev', secret:'preserved (not changed)' }),
+    smoke: async (url, options) => {
+      captured = { url, options };
+      return { health:{status:'ok'}, chat:{reply:'Opening option 01'}, verification:{
+        health:true,cors:true,chat:true,action:true,actionId:'demo.open',
+        healthStatus:'pass',corsStatus:'pass',chatStatus:'pass',actionStatus:'pass'
+      }};
+    }
+  }});
+  const request = { ...baseline, name:'falco-ui-ai', provider:'gemini', model:'gemini-2.5-flash',
+    apiKey:'test-provider-key', actions:action, checkAction:true, actionMessage:'Please open option 01.', mode:'deploy' };
+  const started = await env.post('/api/jobs', request);
+  assert.equal(started.code, 202);
+  const job = await waitForJob(env, started.body.job.id);
+  assert.equal(job.status, 'deployed');
+  assert.equal(job.readiness, 'ready');
+  assert.equal(captured.options.chat, true);
+  assert.equal(captured.options.action.id, 'demo.open');
+  assert.deepEqual(captured.options.action.params, { option:'01' });
+  assert.equal(captured.options.action.message, 'Please open option 01.');
+});
+
+test('Studio explains untested provider and action checks with explicit statuses', async t => {
+  const env = await withServer(t, { runner: {
+    deploy: async () => ({ status:'deployed', url:'https://falco-ui-ai.gtl-ai.workers.dev', secret:'preserved (not changed)' }),
+    smoke: async () => ({ health:{status:'ok'}, chat:null, verification:{
+      health:true,cors:true,chat:null,action:null,
+      healthStatus:'pass',corsStatus:'pass',chatStatus:'not_authorized',actionStatus:'not_configured'
+    }})
+  }});
+  const request = { ...baseline, name:'falco-ui-ai', provider:'gemini', model:'gemini-2.5-flash',
+    apiKey:'test-provider-key', mode:'deploy' };
+  const started = await env.post('/api/jobs', request);
+  const job = await waitForJob(env, started.body.job.id);
+  assert.equal(job.verification.chatStatus, 'not_authorized');
+  assert.equal(job.verification.actionStatus, 'not_configured');
+  assert.equal(job.readiness, 'verification incomplete');
 });

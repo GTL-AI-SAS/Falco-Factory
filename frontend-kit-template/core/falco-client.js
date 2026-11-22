@@ -19,6 +19,11 @@ export class FalcoError extends Error {
 }
 
 const FRIENDLY = {
+  maintenance: 'El asistente está temporalmente en mantenimiento.',
+  budget_exhausted: 'El asistente alcanzó su límite de uso. Inténtalo más tarde.',
+  provider_circuit_open: 'El proveedor de IA está temporalmente en pausa.',
+  budget_unavailable: 'El asistente está temporalmente indisponible.',
+  bot_verification_required: 'Completa la verificación del sitio para enviar tu mensaje.',
   rate_limited: 'Demasiadas solicitudes. Inténtalo de nuevo en un momento.',
   origin_not_allowed: 'Este sitio web no está autorizado a utilizar Falco.',
   invalid_chat_payload: 'Mensaje no válido. Prueba con uno más corto.',
@@ -53,10 +58,11 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
   const history = [];
   let pending = false;
 
-  async function send(rawMessage, { signal } = {}) {
+  async function send(rawMessage, { signal, turnstileToken } = {}) {
     if (pending) throw new FalcoError('busy', 'Wait for the current reply before sending another message.');
     const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
     if (!message || message.length > 2000) throw new FalcoError('invalid_message', 'Enter a message of 1–2,000 characters.');
+    if (turnstileToken !== undefined && (typeof turnstileToken !== 'string' || turnstileToken.length > 2048)) throw new FalcoError('invalid_verification', 'Invalid verification token.');
     if (signal?.aborted) throw new FalcoError('cancelled', 'Request cancelled.');
     const aborter = new AbortController();
     const onAbort = () => aborter.abort();
@@ -68,9 +74,10 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // The Worker requires each history entry <= 1,000 characters and at most 8 entries.
-        body: JSON.stringify({ message, history: history.slice(-maxHistory || history.length).slice(0, maxHistory) }),
+        body: JSON.stringify({ message, history: maxHistory ? history.slice(-maxHistory) : [], ...(turnstileToken ? { turnstileToken } : {}) }),
         signal: aborter.signal,
         credentials: 'omit',
+        redirect: 'error',
         cache: 'no-store',
       });
       const data = await response.json().catch(() => { throw new FalcoError('invalid_response', 'The assistant returned an invalid response.', response.status); });

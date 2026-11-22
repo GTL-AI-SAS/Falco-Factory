@@ -6,7 +6,13 @@ import os from 'node:os';
 import { parseArgs, normalizeConfig } from '../lib/args.mjs';
 import { buildConfig, generate } from '../lib/generate.mjs';
 import { selectAccount } from '../lib/deploy.mjs';
+import { VERSION, WRANGLER_VERSION } from '../lib/args.mjs';
 import { smoke } from '../lib/smoke.mjs';
+
+test('v1.6.3 retains the Wrangler release that supports OS keyring authentication',()=>{
+  assert.equal(VERSION,'1.6.3');
+  assert.equal(WRANGLER_VERSION,'4.166.0');
+});
 
 const flags = { name:'falco-demo', business:'Demo Business', provider:'mock', origin:'https://example.com' };
 
@@ -76,4 +82,103 @@ test('smoke checks health and optional chat without an actual Worker', async () 
   const result = await smoke('https://falco.example.workers.dev', { business:'Demo Business', chat:true, fetcher:fake });
   assert.equal(result.chat.reply,'Hello!');
   assert.deepEqual(calls.map(x => x.method), ['GET','POST']);
+});
+
+
+test('smoke reports not-authorized and not-configured distinctly without making a provider request', async () => {
+  const calls = [];
+  const fake = async (url, options = {}) => {
+    calls.push({ path: url.pathname, method: options.method ?? 'GET' });
+    return Response.json({ status:'ok', service:'falco', business:'Demo Business' });
+  };
+  const configured = await smoke('https://falco.example.workers.dev', {
+    business:'Demo Business', actionConfigured:true, fetcher:fake, attempts:1, pause:async()=>{}
+  });
+  assert.equal(configured.verification.chat, null);
+  assert.equal(configured.verification.chatStatus, 'not_authorized');
+  assert.equal(configured.verification.action, null);
+  assert.equal(configured.verification.actionStatus, 'not_authorized');
+  assert.deepEqual(calls.map(call => call.method), ['GET']);
+
+  const noActions = await smoke('https://falco.example.workers.dev', {
+    business:'Demo Business', fetcher:fake, attempts:1, pause:async()=>{}
+  });
+  assert.equal(noActions.verification.actionStatus, 'not_configured');
+});
+
+test('smoke action verification uses one chat request and never executes a website handler', async () => {
+  const calls = [];
+  const origin = 'https://site.example';
+  const fake = async (url, options = {}) => {
+    calls.push({ path:url.pathname, method:options.method ?? 'GET', body:options.body });
+    if (url.pathname === '/health') return Response.json({ status:'ok', service:'falco', business:'Demo Business' });
+    if (options.method === 'OPTIONS') {
+      if (options.headers?.Origin === 'null') return new Response(null, { status:403 });
+      return new Response(null, { status:204, headers:{
+        'access-control-allow-origin':origin,
+        'access-control-allow-methods':'POST, OPTIONS',
+        'access-control-allow-headers':'content-type'
+      }});
+    }
+    return Response.json({ reply:'Opening option 01', action:{ id:'demo.open', params:{ option:'01' } } }, {
+      headers:{ 'access-control-allow-origin':origin }
+    });
+  };
+  const result = await smoke('https://falco.example.workers.dev', {
+    business:'Demo Business', origins:[origin], actionConfigured:true,
+    action:{ id:'demo.open', params:{ option:'01' }, message:'Please open option 01.' },
+    fetcher:fake, attempts:1, pause:async()=>{}
+  });
+  assert.equal(result.verification.chatStatus, 'pass');
+  assert.equal(result.verification.actionStatus, 'pass');
+  assert.equal(result.verification.actionId, 'demo.open');
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1);
+  assert.equal(JSON.parse(calls.find(call => call.method === 'POST').body).message, 'Please open option 01.');
+});
+
+test('smoke distinguishes a wrong action proposal from a healthy chat response', async () => {
+  const origin = 'https://site.example';
+  const fake = async (url, options = {}) => {
+    if (url.pathname === '/health') return Response.json({ status:'ok', service:'falco' });
+    if (options.method === 'OPTIONS') {
+      if (options.headers?.Origin === 'null') return new Response(null, { status:403 });
+      return new Response(null, { status:204, headers:{
+        'access-control-allow-origin':origin,'access-control-allow-methods':'POST','access-control-allow-headers':'content-type'
+      }});
+    }
+    return Response.json({ reply:'I can help', action:{ id:'demo.other', params:{} } }, { headers:{'access-control-allow-origin':origin} });
+  };
+  await assert.rejects(smoke('https://falco.example.workers.dev', {
+    origins:[origin], actionConfigured:true,
+    action:{ id:'demo.open', params:{option:'01'}, message:'Please open option 01.' },
+    fetcher:fake, attempts:1, pause:async()=>{}
+  }), error => {
+    assert.equal(error.verification.chatStatus, 'pass');
+    assert.equal(error.verification.actionStatus, 'failed');
+    assert.equal(error.verification.chat, true);
+    assert.equal(error.verification.action, false);
+    return /expected action/.test(error.message);
+  });
+});
+
+
+test('smoke marks Client Action proposal checks unsupported on Mock without treating the action as unconfigured', async () => {
+  const fake = async (url, options = {}) => {
+    if (url.pathname === '/health') return Response.json({ status:'ok', service:'falco' });
+    if (options.method === 'OPTIONS') {
+      if (options.headers?.Origin === 'null') return new Response(null, { status:403 });
+      return new Response(null, { status:204, headers:{
+        'access-control-allow-origin':'https://site.example',
+        'access-control-allow-methods':'POST',
+        'access-control-allow-headers':'content-type'
+      }});
+    }
+    return Response.json({ reply:'Mock reply' }, { headers:{'access-control-allow-origin':'https://site.example'} });
+  };
+  const result = await smoke('https://falco.example.workers.dev', {
+    origins:['https://site.example'], chat:true, actionConfigured:true, actionSupported:false,
+    fetcher:fake, attempts:1, pause:async()=>{}
+  });
+  assert.equal(result.verification.chatStatus, 'pass');
+  assert.equal(result.verification.actionStatus, 'unsupported_provider');
 });

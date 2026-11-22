@@ -1,39 +1,22 @@
-GTL AI — FALCO FACTORY STUDIO v1.1
-====================================
+FALCO FACTORY STUDIO v1.6.3
 
-1. Extrae el ZIP COMPLETO en una carpeta NUEVA.
-2. Cierra las ventanas anteriores de Falco Studio.
-3. Haz doble clic en ABRIR_FALCO_STUDIO.cmd.
-4. Entra a Manage existing Falco.
-5. En la fila falco-gallinas-gemini pulsa Export frontend kit.
-6. Entrega el ZIP exportado al agente que diseña la pagina web.
+1. Extrae el ZIP completo en una carpeta nueva.
+2. En Windows abre ABRIR_FALCO_STUDIO.cmd. Requiere Node.js 22.12.0 o superior. La primera apertura instala las dependencias con el lockfile de Wrangler 4.166.0 incluido.
+3. En PowerShell, desde esta carpeta, ejecuta npm.cmd run falco:auth:secure para usar Wrangler OAuth con Windows Credential Manager.
+4. Ejecuta npm.cmd run falco:auth:status o abre Authentication & permissions en Studio para revisar método, almacenamiento y permisos de lectura.
+5. Manage Workers → Load Worker → revisa el estado remoto antes de modificar Workers existentes.
+6. Embedded sigue siendo el modo por defecto. KV se habilita desde Manage Workers si necesitas publicar conocimiento por separado.
 
-NO NECESITAS cargarte el Worker local para exportar el frontend.
-La exportacion no modifica Cloudflare ni sus API keys.
+IMPORTANTE: el keyring de Wrangler protege OAuth, no variables CLOUDFLARE_API_TOKEN. Las comprobaciones de escritura no se ejecutan durante el diagnóstico para evitar mutaciones.
 
-ANTES DE PUBLICAR EL CHAT en un dominio real:
-El Worker debe tener autorizado ese mismo origen (CORS).
-Lee README.md, AGENT_GUIDE.md y API_CONTRACT.md del kit.
-
-Manten tus carpetas antiguas de Falco Factory para cargar y
-administrar los proyectos editables existentes.
-
-NUEVO v0.8: multiples Allowed Origins en Create/Manage. Despues de guardar y desplegar, Export frontend kit incluye ALLOWED_ORIGINS.json y ALLOWED_ORIGINS.md verificados desde Cloudflare. No agregues rutas GitHub Pages ni Origin: null.
+Consulta RELEASE_NOTES_v1.6.3.md para los cambios de esta versión.
 
 
-NUEVO v0.8: cada ZIP de frontend lleva ABRIR_FALCO_KIT.cmd para la demo y
-los archivos integration/ABRIR_DEMO.cmd y integration/tools/falco-static-server.mjs.
-El agente de la web DEBE incluir ABRIR_DEMO.cmd en la raiz de la WEB FINAL,
-no solo en el kit, probar la web en http://localhost:3000/ y leer
-LEER_PRIMERO_AGENTE.md. No abrir index.html con file://.
+## Verificación de despliegue v1.6.3
 
-
-NUEVO v1.1 — CLIENT ACTIONS MVP
-================================
-Abre Manage Existing > falco-gallinas-gemini > Load Worker.
-En Client actions pulsa Use Gallinas navigation preset (01/02/03).
-Save & Deploy Changes (migra runtime si es necesario y guarda backup).
-Luego Export frontend kit: contiene ACTIONS_MANIFEST.json y ACTION_INTEGRATION_GUIDE.md.
-El agente debe registrar el handler local demo.open en la pagina index.html PADRE,
-NO en los tres iframes. El Worker no ejecuta acciones sin un handler de la web.
-No habilita reservas, cancelaciones ni permisos administrativos.
+- Health y CORS se comprueban automáticamente.
+- Las pruebas de chat con Gemini/OpenAI requieren marcar explícitamente la autorización de una solicitud en vivo.
+- La prueba opcional de Client Actions requiere Gemini/OpenAI, una acción configurada y un mensaje de prueba. Verifica la propuesta JSON; nunca ejecuta el handler de la web.
+- La prueba de Client Action usa una sola solicitud y también valida el chat.
+- Los estados distinguen `pass`, `failed`, `skipped`, `not_configured`, `not_authorized` y `unsupported_provider`.
+- Consulta `RELEASE_NOTES_v1.6.3.md` y `UPGRADE_v1.6.3.md` para detalles. Suite local: 129/129 pruebas.

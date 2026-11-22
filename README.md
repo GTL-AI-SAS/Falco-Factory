@@ -1,4 +1,55 @@
-# Falco Factory v1.2 — Diagnostics & Runtime Upgrade
+# Falco Factory v1.6.3
+
+Falco Factory crea y administra un Worker Cloudflare por negocio. Studio incluye gestión de versiones locales y remotas, controles de consumo y exportación de kits de integración.
+
+Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, loading reports an error and keeps the local files. Restart Studio and reload the browser after updating the Factory source.
+
+
+## v1.6.3 — Wrangler 4.166.0 and secure authentication
+
+- Wrangler is pinned to **4.166.0**. This release requires **Node.js 22.12.0 or newer**.
+- This package includes the verified lockfile for the pinned Wrangler release. Use `npm ci` to install the locked dependencies. Generated Worker projects receive their own Wrangler lockfile.
+- Run `npm.cmd run falco:auth:status` to inspect the active authentication method, credential-storage classification, account visibility, and read-only Workers-list permission check. Tokens and raw Wrangler output are never returned to Studio.
+- Run `npm.cmd run falco:auth:secure` to use the official `wrangler login --use-keyring` flow. On Windows, Wrangler stores the encryption key in Windows Credential Manager and keeps the encrypted OAuth file in its Wrangler config directory. If a legacy plaintext OAuth file exists, Wrangler migrates it during opt-in.
+- Studio's **Authentication & permissions** panel displays the same safe diagnostics. It distinguishes read permissions from write permissions: deploy and KV writes are intentionally not tested because diagnostics must not mutate Cloudflare resources.
+- **Important:** OS keyring storage protects Wrangler OAuth credentials only. It does not encrypt `CLOUDFLARE_API_TOKEN` environment variables. API-token users must protect the token at its source.
+
+Fresh setup (PowerShell):
+
+```powershell
+npm.cmd ci
+npm.cmd run falco:auth:secure
+npm.cmd run falco:auth:status
+npm.cmd run falco:doctor -- --cloud
+npm.cmd test
+```
+
+Local validation: `node --test ./tests/*.test.mjs` — **129 tests passed**. The release has not been authenticated or deployed against a customer's Cloudflare account as part of local validation. Run the diagnostics and a staging deployment from the target Windows machine before production changes.
+
+
+## v1.6.3 — explicit deployment verification
+
+- Deployment verification now reports `pass`, `failed`, `skipped`, `not_configured`, `not_authorized`, or `unsupported_provider` rather than collapsing every unrun check into `skipped`.
+- Health and CORS checks remain automatic. Paid provider requests are never made unless the user explicitly authorizes a chat check or a Client Action proposal check.
+- **Create New:** `Authorize one live chat request after deployment` runs one `/chat` request after deploy. The optional Client Action check can use that same single request to verify both the chat response and the first configured action.
+- **Manage Workers:** the same optional checks are available for Save & Deploy and Check live Worker.
+- A Client Action test requires Gemini or OpenAI, a configured action, and a user-supplied test message. It checks the proposed `{ id, params }` response only; it never invokes the website's registered action handler.
+- If an action is configured but not tested, Studio reports `not_authorized`. If no actions exist, it reports `not_configured`. Mock can verify health, CORS and its fixed chat response without cost, but does not generate Client Action proposals.
+- If a test is attempted and the provider fails or proposes the wrong action, Studio reports `failed` and marks verification incomplete. The deployment itself is not rolled back automatically.
+
+
+- **Windows:** extrae el ZIP completo y abre `ABRIR_FALCO_STUDIO.cmd`. Requiere Node.js 22.12.0 o superior.
+- **Terminal:** en una extracción nueva ejecuta `npm ci`, después `npm run falco:doctor` y `npm run falco:ui`. En reinstalaciones posteriores puedes usar `npm ci`. Studio abre en `http://127.0.0.1:4317`.
+- **Workers existentes:** `Manage Workers → Load Worker → Releases, provider & operations → Review remote state`.
+- **Pruebas:** `npm test`, `npm run test:browser` y el smoke opcional de staging descrito en las notas.
+
+[Notas de v1.6 y correspondencia con el roadmap](./RELEASE_NOTES_v1.6.md) · [Referencia de v1.3](./RELEASE_NOTES_v1.3.md) · [ADR de conocimiento](./GTL_AI_Falco_Knowledge_Architecture_ADR_001.md).
+
+Las instrucciones a continuación se conservan como referencia histórica. Para instalar o administrar esta versión, usa las instrucciones anteriores y las notas de v1.6.
+
+---
+
+# Falco Factory v1.2 — Previous Release Notes (Preserved)
 
 **GTL AI baseline:** the previously released v0.8 is called v1.0; v1.1 introduced Client Actions. This release adds safer error handling without changing action IDs, the `/chat` success contract, or the Worker URL.
 
@@ -6,7 +57,7 @@
 
 1. Keep your **v1.1 Factory folder** and its generated `.generated/falco-gallinas-gemini` project. Do not delete your existing project source.
 2. Extract v1.2 into a **new folder**, double-click `ABRIR_FALCO_STUDIO.cmd`, and authenticate with Wrangler if needed.
-3. **Manage Existing** → `falco-gallinas-gemini` → **Load Worker**. Studio should auto-link the v1.1 local source.
+3. **Manage Workers** → `falco-gallinas-gemini` → **Load Worker**. Studio should auto-link the v1.1 local source.
 4. Review the **Runtime diagnostics v1.2** panel. Click **Upgrade runtime & deploy** and explicitly confirm. This operation only supports official v1.1 source fingerprints. A customized file requires manual review.
 5. Factory creates a local `.falco-history/<ID>.runtime-source` backup of every replaced runtime module, checks the existing Cloudflare Worker, redeploys in place and verifies `/health` including `runtimeVersion: "1.2.0"`. If a cloud deploy was partial, the button permits redeploying the already-updated local source.
 6. Use **Test /chat**: ask “Muéstrame la opción 03”. If Gemini returns an error, Studio now displays `providerStatus`, a stable error code and a non-secret diagnostic request ID. The same ID appears in safe `wrangler tail` logs.
@@ -139,7 +190,7 @@ Or let the designer replace all UI markup and call `createFalcoClient({endpoint}
 
 ### Important before a production website goes live
 
-**Every website origin must appear in the Worker allowlist.** New Workers use JSON string `ALLOWED_ORIGINS` plus legacy `ALLOWED_ORIGIN` for compatibility. A Worker created in v0.6 with `http://localhost:3000` still blocks GitHub/Cloudflare Pages until you add the published HTTPS origin under **Manage Existing → Load Worker → Allowed website origins → Save & Deploy Changes**. The first origin update automatically upgrades recognized v0.6 CORS checks without touching the Gemini/OpenAI secret. The original Worker URL stays unchanged. Frontend-only changes never change CORS. Do not disable CORS or embed provider secrets as a workaround. If the host site uses Content Security Policy, it must permit `connect-src` to the Worker endpoint and same-origin JS modules/template fetches. Keep rate limiting enabled: CORS is not authentication against non-browser clients.
+**Every website origin must appear in the Worker allowlist.** New Workers use JSON string `ALLOWED_ORIGINS` plus legacy `ALLOWED_ORIGIN` for compatibility. A Worker created in v0.6 with `http://localhost:3000` still blocks GitHub/Cloudflare Pages until you add the published HTTPS origin under **Manage Workers → Load Worker → Allowed website origins → Save & Deploy Changes**. The first origin update automatically upgrades recognized v0.6 CORS checks without touching the Gemini/OpenAI secret. The original Worker URL stays unchanged. Frontend-only changes never change CORS. Do not disable CORS or embed provider secrets as a workaround. If the host site uses Content Security Policy, it must permit `connect-src` to the Worker endpoint and same-origin JS modules/template fetches. Keep rate limiting enabled: CORS is not authentication against non-browser clients.
 
 The exporter reads `ALLOWED_ORIGINS` (or the old `ALLOWED_ORIGIN`) directly from the **deployed Worker bindings**. It does not guess from local metadata. If Cloudflare cannot verify the settings, export fails with an actionable error rather than producing a misleading origin list. The kit contains no billing details or AI provider secrets. It never embeds Google or OpenAI API calls directly.
 
@@ -205,7 +256,7 @@ Do NOT include the GitHub Pages repository path; the browser's Origin contains o
 
 ## NEW in v1.1 — Client Actions MVP
 
-Use **Manage Existing → Load Worker → Client actions** to add the Gallinas preset `demo.open` with options 01 / 02 / 03. Click **Save & Deploy Changes** to upgrade your existing Worker without changing its URL or Gemini secret. Then export a fresh frontend ZIP; the action manifest is verified against the deployed Worker binding. The agent must implement the handler in the **website parent page**; see `ACTION_INTEGRATION_GUIDE.md`. Old chat-only clients continue to work. No action is executed without a local handler.
+Use **Manage Workers → Load Worker → Client actions** to add the Gallinas preset `demo.open` with options 01 / 02 / 03. Click **Save & Deploy Changes** to upgrade your existing Worker without changing its URL or Gemini secret. Then export a fresh frontend ZIP; the action manifest is verified against the deployed Worker binding. The agent must implement the handler in the **website parent page**; see `ACTION_INTEGRATION_GUIDE.md`. Old chat-only clients continue to work. No action is executed without a local handler.
 
 For CLI, add `--actions ./examples/gallinas/actions.json` to the normal `falco:new` command. Use `[]` (default) for chat-only Workers. This release DOES NOT allow bookings, cancellations, user auth, payments, arbitrary URLs or agent-controlled JavaScript.
 

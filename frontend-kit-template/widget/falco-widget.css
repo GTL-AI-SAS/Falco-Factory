@@ -44,3 +44,12 @@
 .falco__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 420px) { .falco { right: 10px; bottom: 10px; } .falco__panel { width: calc(100vw - 20px); height: min(70dvh, 500px); } }
 @media (prefers-reduced-motion: reduce) { .falco *, .falco *::before, .falco *::after { transition: none !important; animation: none !important; } }
+
+.falco__close, .falco__launcher, .falco__submit { min-width: 44px; min-height: 44px; }
+.falco__privacy { margin: 0; padding: 0 14px 6px; color: var(--falco-muted); font-size: 12px; overflow-wrap: anywhere; }
+.falco__privacy a { color: var(--falco-accent); text-decoration: underline; }
+.falco a:focus-visible { outline: 2px solid var(--falco-accent); outline-offset: 3px; }
+@media (max-height: 380px) {
+  .falco__panel { height: min(72dvh, 300px); }
+  .falco__header { padding-block: 3px; }
+}

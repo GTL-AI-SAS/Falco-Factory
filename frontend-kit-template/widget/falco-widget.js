@@ -34,6 +34,7 @@ export async function mountFalcoWidget(target, overrides = {}) {
   const messages = find('messages');
   const status = find('status');
   const submit = find('send');
+  const lifecycle = new AbortController();
   const id = `falco-panel-${++instanceCount}`;
   const inputId = `falco-input-${instanceCount}`;
   panel.id = id;
@@ -42,6 +43,22 @@ export async function mountFalcoWidget(target, overrides = {}) {
   find('input-label').setAttribute('for', inputId);
   find('title').textContent = config.assistantName || 'Assistant';
   find('launch-label').textContent = config.launcherLabel || 'Chat';
+  const privacy = root.querySelector('[data-falco-privacy]');
+  if (privacy) {
+    const { url, notice } = config.privacy ?? {};
+    if (typeof notice === 'string' && notice.trim()) privacy.textContent = notice;
+    if (url) {
+      try {
+        const page = new URL(url);
+        if (page.protocol === 'https:' && !page.username && !page.password) {
+          const link = document.createElement('a');
+          link.href = page.href; link.textContent = 'Privacy policy'; link.rel = 'noopener noreferrer';
+          privacy.append(document.createTextNode(' '), link);
+        }
+      } catch { /* A client-provided malformed policy link is discarded. */ }
+    }
+    privacy.hidden = !privacy.textContent.trim();
+  }
   input.placeholder = config.placeholder || 'Write a message';
   const client = createFalcoClient({ endpoint: config.endpoint, timeoutMs: config.timeoutMs, maxHistory: config.maxHistory });
   const actions = createActionController(falcoActions, overrides.actionHandlers ?? {});
@@ -75,16 +92,20 @@ export async function mountFalcoWidget(target, overrides = {}) {
     message('user', text);
     input.value = '';
     try {
-      const { reply, action } = await client.send(text);
+      const turnstileToken = typeof config.getTurnstileToken === 'function' ? await config.getTurnstileToken() : undefined;
+      const { reply, action } = await client.send(text, { turnstileToken, signal: lifecycle.signal });
       if (!destroyed) {
-        message('assistant', reply);
+        status.textContent = '';
         if (action) {
+          message('assistant', config.actionAttemptMessage ?? 'Voy a intentar realizar la acción solicitada.');
           const result = await actions.dispatch(action);
-          if (!result.executed && !destroyed) {
+          if (result.executed && !destroyed) {
+            message('assistant', config.actionCompletedMessage ?? 'Acción completada.');
+          } else if (!destroyed) {
             status.dataset.error = 'true';
             status.textContent = result.reason === 'handler_missing' ? 'Esta página todavía no tiene conectada esa acción.' : 'No se pudo realizar esa acción desde esta página.';
           }
-        }
+        } else message('assistant', reply);
       }
     } catch (err) {
       if (!destroyed) {
@@ -97,7 +118,7 @@ export async function mountFalcoWidget(target, overrides = {}) {
         submit.disabled = false;
         input.disabled = false;
         if (status.dataset.error !== 'true') status.textContent = '';
-        input.focus();
+        if (!panel.hidden && (document.activeElement === document.body || root.contains(document.activeElement))) input.focus();
       }
     }
   }
@@ -112,6 +133,6 @@ export async function mountFalcoWidget(target, overrides = {}) {
     root,
     open() { setOpen(true); },
     close() { setOpen(false); },
-    destroy() { destroyed = true; root.remove(); },
+    destroy() { destroyed = true; lifecycle.abort(); root.remove(); },
   };
 }

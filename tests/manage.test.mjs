@@ -174,7 +174,14 @@ test('legacy Gemini Worker can add origins without modifying knowledge, credenti
   assert.ok((await fs.readFile(jsonFile,'utf8')).includes('ALLOWED_ORIGINS'));
   assert.deepEqual((await readVersion(changed,job.backupId)).config.origins,['https://example.com']);
   assert.ok((await fs.readFile(path.join(changed.output,'.falco-history',`${job.backupId}.src-index.mjs`),'utf8')).includes('const allowed = env.ALLOWED_ORIGIN'));
-  const restored = await e.request('/api/jobs',{mode:'restore',folder:changed.folder,revision:changed.revision,versionId:job.backupId});
+  const knowledge = await e.request('/api/jobs',{mode:'restore',folder:changed.folder,revision:changed.revision,versionId:job.backupId});
+  assert.equal((await e.wait(knowledge.body.job.id)).status, 'restored');
+  assert.deepEqual((await readProject(e.root, base.name)).origins, origins);
+  const fullPreview = await e.request('/api/projects/falco-manage-test/restore-preview',{revision:changed.revision,versionId:job.backupId,full:true});
+  assert.equal(fullPreview.body.diff.originsChanged,true);
+  const blocked = await e.request('/api/jobs',{mode:'restore-config',folder:changed.folder,revision:changed.revision,versionId:job.backupId});
+  assert.equal(blocked.status,400);
+  const restored = await e.request('/api/jobs',{mode:'restore-config',folder:changed.folder,revision:changed.revision,versionId:job.backupId,confirmName:changed.name,acknowledge:'RESTORE CONFIG'});
   assert.equal((await e.wait(restored.body.job.id)).status,'restored');
   assert.deepEqual((await readProject(e.root,base.name)).origins,['https://example.com']);
 });

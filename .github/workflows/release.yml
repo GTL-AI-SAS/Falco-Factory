@@ -1,0 +1,62 @@
+name: Falco Factory release checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: npm ci
+      - run: npm run falco:doctor
+      - run: npm test
+      - run: npx playwright install chromium
+        if: runner.os == 'Windows'
+      - run: npx playwright install --with-deps chromium
+        if: runner.os == 'Linux'
+      - run: npm run test:browser
+      - run: npm run test:worker-e2e
+      - run: npm run release
+      - name: Check clean Windows extraction and launcher
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist -Filter *.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\Falco test release"
+          Set-Location "$env:RUNNER_TEMP\Falco test release"
+          cmd.exe /d /c ABRIR_FALCO_STUDIO.cmd --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        with:
+          name: falco-factory
+          path: dist/*.zip
+
+  staging:
+    if: github.event_name == 'workflow_dispatch' && vars.FALCO_STAGING_URL != ''
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      FALCO_STAGING_URL: ${{ vars.FALCO_STAGING_URL }}
+      FALCO_STAGING_ORIGIN: ${{ vars.FALCO_STAGING_ORIGIN }}
+      FALCO_STAGING_KV_REVISION: ${{ vars.FALCO_STAGING_KV_REVISION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: npm ci
+      - run: npm run test:staging

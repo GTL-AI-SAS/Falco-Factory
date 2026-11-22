@@ -5,7 +5,7 @@ title GTL AI - Falco Factory Studio
 
 echo.
 echo  ==================================================
-echo        GTL AI - FALCO FACTORY STUDIO v0.8
+echo        GTL AI - FALCO FACTORY STUDIO v1.6.2
 echo  ==================================================
 echo.
 
@@ -18,14 +18,14 @@ if not exist "package.json" (
 where node.exe >nul 2>&1
 if errorlevel 1 (
   echo [ERROR] Node.js no esta instalado o no esta en PATH.
-  echo Instala Node.js 20 o superior desde https://nodejs.org
+  echo Instala Node.js 22.12.0 o superior desde https://nodejs.org
   echo Luego cierra y vuelve a abrir este archivo.
   goto :failed
 )
 
-node.exe -e "process.exit(Number(process.versions.node.split('.')[0]) >= 20 ? 0 : 1)"
+node.exe -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(a>22 || (a===22 && b>=12) ? 0 : 1)"
 if errorlevel 1 (
-  echo [ERROR] Esta version requiere Node.js 20 o superior.
+  echo [ERROR] Esta version requiere Node.js 22.12.0 o superior.
   node.exe --version
   echo Actualiza desde https://nodejs.org
   goto :failed
@@ -37,7 +37,8 @@ if errorlevel 1 (
   goto :failed
 )
 
-if not exist "node_modules\wrangler\bin\wrangler.js" (
+node.exe -e "try {const p=require('./package.json'), w=require('./node_modules/wrangler/package.json'), l=require('./package-lock.json'); process.exit(w.version===p.devDependencies.wrangler && l.packages[''].devDependencies.wrangler===p.devDependencies.wrangler ? 0 : 1)} catch {process.exit(1)}"
+if errorlevel 1 (
   echo [1/2] Primera apertura: instalando las dependencias...
   echo       Esto solo es necesario una vez por carpeta.
   call npm.cmd install --no-audit --no-fund
@@ -46,12 +47,25 @@ if not exist "node_modules\wrangler\bin\wrangler.js" (
     echo [ERROR] npm install fallo. Revisa tu conexion y el error anterior.
     goto :failed
   )
+  node.exe -e "try {const p=require('./package.json'), w=require('./node_modules/wrangler/package.json'), l=require('./package-lock.json'); process.exit(w.version===p.devDependencies.wrangler && l.packages[''].devDependencies.wrangler===p.devDependencies.wrangler ? 0 : 1)} catch {process.exit(1)}"
+  if errorlevel 1 (
+    echo [ERROR] La instalacion no coincide con la version requerida de Wrangler.
+    echo Cierra Studio, elimina node_modules y package-lock.json, y vuelve a abrir este archivo.
+    goto :failed
+  )
 ) else (
   echo [1/2] Dependencias ya instaladas.
 )
 
+if /i "%~1"=="--check" (
+  call npm.cmd run falco:doctor
+  if errorlevel 1 exit /b 1
+  exit /b 0
+)
+
 echo [2/2] Iniciando Falco Factory Studio...
 echo       El navegador se abrira automaticamente.
+echo       Auth segura: npm.cmd run falco:auth:secure
 echo       Si no se abre: http://127.0.0.1:4317
 echo.
 echo  IMPORTANTE: deja esta ventana abierta mientras uses Studio.
@@ -67,6 +81,7 @@ if errorlevel 1 (
 exit /b 0
 
 :failed
+if /i "%~1"=="--check" exit /b 1
 echo.
 echo No se completo el inicio. Revisa los mensajes anteriores.
 pause

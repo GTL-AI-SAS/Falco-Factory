@@ -1,24 +1,29 @@
 /** Runtime action contract. No eval, arbitrary URLs, DOM selectors, network actions or permissions. */
+import { providerUsage } from './operations.mjs';
 import { ProviderError, postJson, assertUsableOutput } from './providers/shared.mjs';
 
 const ID = /^[a-z][a-z0-9_.-]{2,48}$/;
+const VALUE = /^[\p{L}\p{N}_. :/-]{1,60}$/u;
 const KEY = /^[a-z][a-z0-9_]{0,30}$/;
 const own = (v) => Boolean(v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype);
 
-export function readActions(env) {
-  if (!env.CLIENT_ACTIONS_JSON) return [];
+export class ActionConfigurationError extends Error {}
+
+export function readActions(env, { strict = false } = {}) {
+  const invalid = () => { throw new ActionConfigurationError('invalid_action_configuration'); };
+  if (env.CLIENT_ACTIONS_JSON === undefined) return [];
   try {
-    if (new TextEncoder().encode(env.CLIENT_ACTIONS_JSON).byteLength > 3900) return [];
+    if (new TextEncoder().encode(env.CLIENT_ACTIONS_JSON).byteLength > 3900) return invalid();
     const actions = JSON.parse(env.CLIENT_ACTIONS_JSON);
-    if (!Array.isArray(actions) || actions.length > 8) return [];
+    if (!Array.isArray(actions) || actions.length > 8) return invalid();
     const ids = new Set();
     for (const a of actions) {
-      if (!own(a) || !ID.test(a.id) || ids.has(a.id) || typeof a.description !== 'string' || a.description.length > 240 || a.description.length < 10 || !own(a.parameters) || Object.keys(a.parameters).length > 3) return [];
+      if (!own(a) || Object.keys(a).some(key => !['id','description','parameters'].includes(key)) || !ID.test(a.id) || ids.has(a.id) || typeof a.description !== 'string' || a.description.length > 240 || a.description.length < 10 || /[\u0000-\u001f]/.test(a.description) || !own(a.parameters) || Object.keys(a.parameters).length > 3) return invalid();
       ids.add(a.id);
-      for (const [key, d] of Object.entries(a.parameters)) if (!KEY.test(key) || !own(d) || d.type !== 'string' || !Array.isArray(d.enum) || d.enum.length < 1 || d.enum.length > 12 || d.enum.some(v => typeof v !== 'string' || v.length > 60)) return [];
+      for (const [key, d] of Object.entries(a.parameters)) if (!KEY.test(key) || !own(d) || Object.keys(d).some(key => !['type','enum'].includes(key)) || d.type !== 'string' || !Array.isArray(d.enum) || d.enum.length < 1 || d.enum.length > 12 || new Set(d.enum).size !== d.enum.length || d.enum.some(v => typeof v !== 'string' || !VALUE.test(v))) return invalid();
     }
     return actions;
-  } catch { return []; }
+  } catch { return strict ? invalid() : []; }
 }
 
 /** Only explicit manifest ids + exact enum parameter values may leave the Worker. */
@@ -53,7 +58,7 @@ function actionInstructions(actions) {
 }
 
 /** Provider adapters are never given action permissions; they only generate JSON proposals. */
-export async function askActionProvider({ env, instructions, history, message, actions, fetcher = fetch }) {
+export async function askActionProvider({ env, instructions, history, message, actions, report, fetcher = fetch }) {
   if (env.PROVIDER === 'mock') return { reply: env.MOCK_REPLY || `Hola, soy Falco, el asistente de ${env.BUSINESS_NAME}.` };
   const system = instructions + actionInstructions(actions);
   let output;
@@ -67,6 +72,7 @@ export async function askActionProvider({ env, instructions, history, message, a
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:normalized,
         generationConfig:{maxOutputTokens:650,temperature:0.2,responseMimeType:'application/json'} })
     },fetcher);
+    providerUsage(data, env.PROVIDER, report);
     output = assertUsableOutput(data?.candidates?.[0]?.content?.parts?.filter(p=>typeof p.text === 'string').map(p=>p.text).join('') || '', { finishReason:data?.candidates?.[0]?.finishReason });
   } else if (env.PROVIDER === 'openai') {
     if (!env.OPENAI_API_KEY) throw new ProviderError('provider_not_configured', 503);
@@ -75,6 +81,7 @@ export async function askActionProvider({ env, instructions, history, message, a
       body:JSON.stringify({model:env.MODEL,instructions:system,input:[...history.map(({role,content})=>({role,content})),{role:'user',content:message}],
         max_output_tokens:650,store:false,text:{format:{type:'json_object'}}})
     },fetcher);
+    providerUsage(data, env.PROVIDER, report);
     output = assertUsableOutput(data?.output_text || data?.output?.flatMap(i=>i.type === 'message' ? (i.content||[]) : []).filter(i=>i.type === 'output_text').map(i=>i.text).join('') || '', { finishReason:data?.status === 'incomplete' ? 'MAX_TOKENS' : null });
   } else throw new ProviderError('provider_not_supported',503);
   return parseActionResponse(output, actions);

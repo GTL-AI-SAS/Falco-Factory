@@ -1,0 +1,26 @@
+{
+  "id": "d140a15d-d65e-417f-8998-30fb0f9f0ef9",
+  "name": "falco-gallinas-gemini",
+  "mode": "deploy",
+  "operation": "update",
+  "status": "failed",
+  "createdAt": "2026-11-22T16:15:48.283Z",
+  "events": [
+    {
+      "stage": "preflight",
+      "at": "2026-11-22T16:15:48.300Z",
+      "message": "preflight"
+    },
+    {
+      "stage": "error",
+      "at": "2026-11-22T16:15:53.628Z",
+      "message": "error"
+    }
+  ],
+  "verification": {},
+  "url": null,
+  "backupId": null,
+  "reason": "remote_drift",
+  "elapsedMs": 5345,
+  "error": "Check the saved verification and live Cloudflare state before retrying."
+}
