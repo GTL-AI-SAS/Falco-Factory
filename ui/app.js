@@ -1,4 +1,5 @@
 import { createStudioSounds } from './sounds.js';
+import { createStudioIntro } from './intro.js';
 
 /* Falco Factory Studio — local-only client. Only the sound preference is stored. */
 (() => {
@@ -46,6 +47,7 @@ import { createStudioSounds } from './sounds.js';
   const provider = () => form.querySelector('input[name="provider"]:checked').value;
   const knowledgeMode = () => form.querySelector('input[name="knowledgeMode"]:checked').value;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const intro = createStudioIntro({ document, reducedMotion });
   const successfulStatuses = ['ready', 'validated', 'generated', 'deployed', 'updated', 'restored', 'checked'];
   const eventStages = {
     prepare: 'Preflight', preflight: 'Preflight', generate: 'Build', backup: 'Snapshot',
@@ -1503,6 +1505,7 @@ import { createStudioSounds } from './sounds.js';
   }
   async function init() {
     listen();
+    intro.start();
     updateSummary();
     updateActionVerificationOptions();
     try {
@@ -1511,12 +1514,12 @@ import { createStudioSounds } from './sounds.js';
       browserManaged = boot.exitOnBrowserClose === true;
       void connectStudioSession();
       Object.assign(models, boot.defaultModels);
-      void loadProjects();
+      await loadProjects();
       void checkCloudflare();
     } catch (err) {
       setError(`Local Studio connection failed: ${err.message}`);
       busy(true);
-    }
+    } finally { intro.ready(); }
   }
   void init();
 })();

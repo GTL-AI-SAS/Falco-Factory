@@ -88,6 +88,35 @@ test('existing Worker chat works without a deployment job or local source and us
   assert.deepEqual(await fs.readdir(env.tmp), []);
 });
 
+test('Studio serves the cinematic film with HEAD and byte ranges for native video playback', async t => {
+  const env = await withServer(t);
+  const video = await fs.readFile(new URL('../assets/brand/falco-brushstroke-cinematic.mp4', import.meta.url));
+  const route = env.url + '/assets/falco-brushstroke-cinematic.mp4';
+  const head = await fetch(route, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get('content-type'), 'video/mp4');
+  assert.equal(head.headers.get('content-length'), String(video.length));
+  assert.equal(head.headers.get('accept-ranges'), 'bytes');
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  for (const [range, expected, position] of [
+    ['bytes=0-63', video.subarray(0, 64), `0-63`],
+    ['bytes=-64', video.subarray(-64), `${video.length - 64}-${video.length - 1}`],
+    [`bytes=${video.length - 64}-`, video.subarray(-64), `${video.length - 64}-${video.length - 1}`]
+  ]) {
+    const response = await fetch(route, { headers: { Range: range } });
+    assert.equal(response.status, 206);
+    assert.equal(response.headers.get('content-range'), `bytes ${position}/${video.length}`);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), expected);
+  }
+  for (const range of [`bytes=${video.length}-`, 'bytes=20-10', 'bytes=-0', 'bytes=0-1,4-5', 'invalid']) {
+    const response = await fetch(route, { headers: { Range: range } });
+    assert.equal(response.status, 416);
+    assert.equal(response.headers.get('content-range'), `bytes */${video.length}`);
+    assert.equal((await response.arrayBuffer()).byteLength, 0);
+  }
+  assert.deepEqual(Buffer.from(await (await fetch(route)).arrayBuffer()), video);
+});
+
 test('existing Worker chat rejects invalid targets and messages and preserves Worker diagnostics', async t => {
   const accountId = 'a'.repeat(32);
   let requests = 0;

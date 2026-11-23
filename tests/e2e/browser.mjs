@@ -80,6 +80,37 @@ await new Promise(resolve => testServer.listen(0, '127.0.0.1', resolve));
 const browser = await chromium.launch({ ...(process.env.FALCO_CHROMIUM ? { executablePath:process.env.FALCO_CHROMIUM } : {}), headless:true,
   args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
 try {
+  const introPage = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'no-preference' });
+  await introPage.addInitScript(() => {
+    window.__introFades = 0;
+    document.addEventListener('transitionrun', event => { if (event.target.id === 'studioIntro' && event.propertyName === 'opacity') window.__introFades++; });
+  });
+  await introPage.goto(ui);
+  assert.equal(await introPage.locator('#studioIntro img').count(), 0, 'no frozen placeholder logo appears before playback');
+  await introPage.waitForFunction(() => document.querySelector('#introVideo').currentTime > .05);
+  await introPage.waitForFunction(() => document.querySelector('#introVideo').classList.contains('is-ready'));
+  assert.equal(await introPage.locator('#studioIntro').isVisible(), true);
+  assert.equal(await introPage.locator('#studioApp').evaluate(app => app.inert), true);
+  assert.equal(await introPage.locator('#introVideo').evaluate(video => video.muted), true);
+  assert.equal(await introPage.locator('#introVideo').evaluate(video => video.playbackRate), 1.25);
+  await introPage.waitForFunction(() => document.querySelector('#studioIntro').hidden, null, { timeout: 10000 });
+  assert.equal(await introPage.locator('#introVideo').evaluate(video => video.ended), true, 'the complete opening film plays before revealing Studio');
+  assert.equal(await introPage.locator('#studioApp').evaluate(app => app.inert), false);
+  assert.ok(await introPage.evaluate(() => window.__introFades > 0), 'the opening film fades out');
+  await introPage.locator('#replayIntro').click();
+  assert.equal(await introPage.locator('#studioIntro').isVisible(), true);
+  await introPage.locator('#skipIntro').click();
+  await introPage.waitForFunction(() => document.querySelector('#studioIntro').hidden);
+  assert.equal(await introPage.locator('#studioIntro').isVisible(), false);
+  assert.equal(await introPage.evaluate(() => document.activeElement.id), 'replayIntro');
+  assert.equal(await introPage.locator('#brandFilm').evaluate(video => video.controls), true);
+  await introPage.close();
+  const fallbackPage = await browser.newPage({ reducedMotion: 'no-preference' });
+  await fallbackPage.route('**/falco-brushstroke-cinematic.mp4', route => route.abort());
+  await fallbackPage.goto(ui);
+  await fallbackPage.waitForFunction(() => document.querySelector('#studioIntro').hidden);
+  assert.equal(await fallbackPage.locator('#studioApp').evaluate(app => app.inert), false, 'an unavailable video never prevents Studio from opening');
+  await fallbackPage.close();
   const page = await browser.newPage({ viewport:{ width:375, height:660 }, reducedMotion:'reduce' });
   await page.addInitScript(() => {
     window.__soundStarts = 0;
@@ -96,6 +127,8 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(ui);
+  await page.waitForFunction(() => document.querySelector('#studioIntro').hidden);
+  assert.equal(await page.locator('#introVideo').getAttribute('src'), null, 'reduced-motion sessions skip autoplay');
   assert.equal(await page.title(), 'Falco Studio');
   await page.locator('.brand-logo').evaluate(image => image.decode());
   assert.equal(await page.locator('.brand-logo').getAttribute('alt'), 'FALCO');

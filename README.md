@@ -8,6 +8,8 @@ The EXE runs Studio without a visible terminal. Startup output is saved to `.fal
 
 Studio plays distinct, clearly audible cues when a Cloudflare account or Falco finishes loading, an operation completes, or a chat reply arrives. Validation errors, failed requests, and partial or failed operations have their own cues. Use **Sounds on/off** in the sidebar to mute them; this preference is remembered in the browser. Sounds are synthesized locally and require a user interaction first. Account changes and manual refreshes play a connection cue; routine background refreshes of the same account stay silent.
 
+The `assets/brand/falco-brushstroke-cinematic.mp4` film plays at 1.25× speed (about four seconds) as a muted opening intro while Studio loads in parallel, then fades into the workspace. Playback starts directly from the video's first decoded frame without a separate placeholder logo. **Skip intro** uses the same short fade; reduced-motion preferences skip autoplay and transitions, and unavailable media cannot block startup. The sidebar's **FALCO cinematic** card keeps the original film available with playback controls and **Watch full intro** to replay it.
+
 Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, loading reports an error and keeps the local files. Restart Studio and reload the browser after updating the Factory source.
 
 ## Project directories

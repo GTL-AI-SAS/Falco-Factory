@@ -27,7 +27,7 @@ try {
   await fs.writeFile(configFile, JSON.stringify(config));
   const outdir = path.join(root, 'bundle');
   const result = await runWrangler(['deploy','--dry-run','--outdir',outdir], { cwd:c.output });
-  assert.equal(result.code, 0, 'Wrangler could not bundle the generated project.');
+  assert.equal(result.code, 0, 'Wrangler could not bundle the generated project.\n' + (result.stderr || result.stdout || '').slice(-4000));
   runtime = new Miniflare(convertV4MiniflareOptions({
     modules:true, modulesRoot:outdir, scriptPath:path.join(outdir, 'entry.js'), compatibilityDate:config.compatibility_date,
     host:'127.0.0.1', port:0, cf:false,
@@ -41,6 +41,7 @@ try {
   const url = (await runtime.ready).origin;
   const checked = await smoke(url, { business:c.business, origins:[origin], knowledgeRevision:knowledge.revision, attempts:1 });
   assert.equal(checked.verification.knowledge, true);
+  assert.equal(checked.verification.knowledgeStatus, 'pass');
   const chat = () => fetch(url+'/chat', { method:'POST', headers:{ Origin:origin, 'Content-Type':'application/json' },
     body:JSON.stringify({ message:'Hello', history:[] }) });
   const responses = await Promise.all([chat(), chat()]);
