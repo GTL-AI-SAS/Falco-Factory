@@ -6,7 +6,7 @@ if exist "%~dp0scripts\update-studio-shortcut.ps1" powershell.exe -NoProfile -Ex
 
 echo.
 echo  ==================================================
-echo        GTL AI - FALCO FACTORY STUDIO v1.6.2
+echo        GTL AI - FALCO FACTORY STUDIO v1.8.0
 echo  ==================================================
 echo.
 
@@ -66,13 +66,13 @@ if /i "%~1"=="--check" (
 
 echo [2/2] Iniciando Falco Factory Studio...
 echo       El navegador se abrira automaticamente.
-echo       Auth segura: npm.cmd run falco:auth:secure
+echo       Administra conexiones Cloudflare desde Studio.
 echo       Si no se abre: http://127.0.0.1:4317
 echo.
 echo  Studio se detendra al cerrar su ultima pestana.
 echo  Si hay un despliegue en curso, esperara a que termine.
 echo.
-call npm.cmd run falco:ui
+call npm.cmd run falco:ui -- %*
 if errorlevel 1 (
   echo.
   echo [ERROR] Falco Studio no pudo iniciarse.

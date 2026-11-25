@@ -1,3 +1,4 @@
+import { normalizeActions, validateAction, validateActionResult, requestIdValid, interactiveAction } from '../actions/action-contract.js';
 /**
  * Falco transport — framework-independent, no DOM or styling.
  * Contract: POST {message, history:[{role,content}]} => {reply:string}.
@@ -45,7 +46,7 @@ const FRIENDLY = {
   network_error: 'No se pudo conectar con Falco. Revisa tu conexión y el dominio autorizado.',
 };
 
-export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8, fetchImpl = globalThis.fetch } = {}) {
+export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8, actions = [], fetchImpl = globalThis.fetch } = {}) {
   let url;
   try { url = new URL(endpoint); } catch { throw new FalcoError('configuration_error', 'Set a valid Worker /chat URL.'); }
   if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) ||
@@ -55,10 +56,14 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
   if (typeof fetchImpl !== 'function') throw new FalcoError('configuration_error', 'Fetch API is required.');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 60000) throw new FalcoError('configuration_error', 'timeoutMs must be 1,000–60,000.');
   if (!Number.isInteger(maxHistory) || maxHistory < 0 || maxHistory > 8) throw new FalcoError('configuration_error', 'maxHistory must be 0–8.');
+  const manifest = normalizeActions(actions);
   const history = [];
+  let actionPending = null;
+  let completion = null;
   let pending = false;
 
-  async function send(rawMessage, { signal, turnstileToken } = {}) {
+  async function request(rawMessage, { signal, turnstileToken, actionResult } = {}) {
+    if (actionPending && !actionResult) throw new FalcoError('action_pending', 'Confirm or cancel the pending action first.');
     if (pending) throw new FalcoError('busy', 'Wait for the current reply before sending another message.');
     const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
     if (!message || message.length > 2000) throw new FalcoError('invalid_message', 'Enter a message of 1–2,000 characters.');
@@ -74,7 +79,7 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // The Worker requires each history entry <= 1,000 characters and at most 8 entries.
-        body: JSON.stringify({ message, history: maxHistory ? history.slice(-maxHistory) : [], ...(turnstileToken ? { turnstileToken } : {}) }),
+        body: JSON.stringify({ message, history: maxHistory ? history.slice(-maxHistory) : [], actionProtocol:2, ...(turnstileToken ? { turnstileToken } : {}), ...(actionResult ? { actionResult } : {}) }),
         signal: aborter.signal,
         credentials: 'omit',
         redirect: 'error',
@@ -91,14 +96,20 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
       if (!data || typeof data.reply !== 'string' || !data.reply.trim()) {
         throw new FalcoError('invalid_response', 'The assistant returned an empty reply.', response.status);
       }
+      let action = actionResult ? null : data.action;
+      if (data.actionRequestId && !actionResult) {
+        action = validateAction(action,manifest);
+        const definition=manifest.find(a => a.id === action?.id);
+        if (!action || !requestIdValid(data.actionRequestId) || !interactiveAction(definition) || JSON.stringify(data.actionDefinition) !== JSON.stringify(definition)) throw new FalcoError('invalid_action', 'The action does not match this frontend kit. Re-export the kit after updating Worker actions.');
+        actionPending = {requestId:data.actionRequestId,action}; completion = null;
+      }
       const reply = data.reply.slice(0, 4000);
       // Record only successful turns. Truncating the replies is required by the Worker history contract.
-      history.push({ role: 'user', content: message.slice(0, 1000) },
-                   { role: 'assistant', content: reply.slice(0, 1000) });
+      history.push({ role: 'user', content: (actionResult ? 'Resultado reportado por la p?gina: ' + JSON.stringify(actionResult) : message).slice(0, 1000) },
+                   { role: 'assistant', content: (actionPending && !actionResult ? 'Acción propuesta, todavía sin ejecutar: '+JSON.stringify(actionPending.action) : reply).slice(0, 1000) });
       if (history.length > maxHistory) history.splice(0, history.length - maxHistory);
       // Do not execute actions in the transport. Leave authorization to the local controller.
-      const action = data.action;
-      return { reply, ...(action && typeof action === 'object' && !Array.isArray(action) ? { action } : {}) };
+      return { reply, ...(actionPending && !actionResult ? {actionRequestId:actionPending.requestId} : {}), ...(action && typeof action === 'object' && !Array.isArray(action) ? { action } : {}) };
     } catch (err) {
       if (err instanceof FalcoError) throw err;
       if (aborter.signal.aborted) throw new FalcoError(signal?.aborted ? 'cancelled' : 'timeout', signal?.aborted ? 'Request cancelled.' : FRIENDLY.timeout);
@@ -110,9 +121,27 @@ export function createFalcoClient({ endpoint, timeoutMs = 16000, maxHistory = 8,
       pending = false;
     }
   }
+  async function completeAction(result, options = {}) {
+    const clean = validateActionResult(result,manifest);
+    if (!actionPending || !clean || clean.requestId !== actionPending.requestId || JSON.stringify(clean.action) !== JSON.stringify(actionPending.action)) throw new FalcoError('invalid_action_result','Result does not match the pending action.');
+    if (completion && JSON.stringify(completion) !== JSON.stringify(clean)) throw new FalcoError('invalid_action_result','The recorded outcome cannot be replaced.');
+    completion = clean;
+    const reply = await request('Explica el resultado reportado de la acci?n sin volver a ejecutarla.',{...options,actionResult:clean});
+    actionPending = null; completion = null;
+    return reply;
+  }
   return {
-    send,
-    reset() { if (pending) throw new FalcoError('busy', 'Wait for the current reply before resetting.'); history.length = 0; },
+    send(message,options = {}) {return request(message,{signal:options.signal,turnstileToken:options.turnstileToken});},
+    completeAction,
+    retryActionResult(options) {return completeAction(completion,options);},
+    abandonActionResult(result) {
+      if (pending) throw new FalcoError('busy','Wait for the current reply.');
+      if(result){const clean=validateActionResult(result,manifest);if(!clean || clean.requestId!==actionPending?.requestId || JSON.stringify(clean.action)!==JSON.stringify(actionPending.action))throw new FalcoError('invalid_action_result','Result does not match the pending action.');completion=clean;}
+      if (completion && maxHistory) {history.push({role:'assistant',content:('Resultado reportado por la p?gina: '+JSON.stringify(completion)).slice(0,1000)});if(history.length>maxHistory)history.splice(0,history.length-maxHistory);}
+      actionPending=null;completion=null;
+    },
+    get pendingAction() {return actionPending ? structuredClone(actionPending) : null;},
+    reset() { if (pending) throw new FalcoError('busy', 'Wait for the current reply before resetting.'); history.length = 0; actionPending=null;completion=null; },
     getHistory() { return history.map(item => ({ ...item })); },
     get pending() { return pending; },
   };

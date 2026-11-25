@@ -1,30 +1,54 @@
-/** Browser-side, deterministic allowlist. Never eval model output. */
-const idRule = /^[a-z][a-z0-9_.-]{2,48}$/;
-const own = obj => Boolean(obj && typeof obj === 'object' && !Array.isArray(obj) && Object.getPrototypeOf(obj) === Object.prototype);
+/** Deterministic local allowlist. Model output never selects a URL or executable. */
+import { normalizeActions, validateAction, interactiveAction, publicResult, requestIdValid, plain } from './action-contract.js';
 export function createActionController(manifest, handlers = {}) {
-  if (!Array.isArray(manifest) || manifest.length > 8) throw Error('Invalid Falco action manifest.');
-  const allowed = new Map();
-  for(const a of manifest) {
-    if (!own(a) || !idRule.test(a.id) || allowed.has(a.id) || !own(a.parameters)) throw Error('Invalid action in manifest.');
-    allowed.set(a.id, a);
-  }
-  if (!own(handlers)) throw Error('Action handlers must be a map of local functions.');
+  const actions = normalizeActions(manifest);
+  if (!handlers || typeof handlers !== 'object' || Array.isArray(handlers) || Object.getPrototypeOf(handlers) !== Object.prototype) throw Error('Action handlers must be a map of local functions.');
+  const allowed = new Map(actions.map(a => [a.id,a]));
+  const invocations = new Map();
   return Object.freeze({
-    async dispatch(request) {
-      if (!own(request) || Object.keys(request).sort().join(',') !== 'id,params' || typeof request.id !== 'string') return {executed:false,reason:'invalid_action'};
-      const def = allowed.get(request.id);
-      if (!def || !own(request.params) || Object.keys(request.params).sort().join(',') !== Object.keys(def.parameters).sort().join(',')) return {executed:false,reason:'not_allowed'};
-      for (const [key, spec] of Object.entries(def.parameters)) {
-        if (spec?.type !== 'string' || !Array.isArray(spec.enum) || typeof request.params[key] !== 'string' || !spec.enum.includes(request.params[key])) return {executed:false,reason:'invalid_parameters'};
-      }
-      // A model can request a manifest action but cannot register handlers or choose a function dynamically.
-      const handler = Object.hasOwn(handlers, request.id) ? handlers[request.id] : null;
-      if (typeof handler !== 'function') return {executed:false,reason:'handler_missing'};
-      try {
-        const result = await handler({ ...request.params });
-        return result === false || result?.ok === false ? {executed:false,reason:'handler_rejected'} : {executed:true};
-      } catch { return {executed:false,reason:'handler_failed'}; }
+    async dispatch(request, { requestId, confirmed = false, signal, timeoutMs = 30000 } = {}) {
+      const valid = validateAction(request,actions);
+      if (!valid) return { executed:false,reason:'not_allowed' };
+      const spec = allowed.get(valid.id), modern = interactiveAction(spec);
+      if (modern && !requestIdValid(requestId)) return {executed:false,reason:'request_id_required'};
+      if (modern && (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000)) throw Error('Action timeout must be 1?120000 ms.');
+      if (spec.requiresConfirmation && confirmed !== true) return {executed:false,reason:'confirmation_required'};
+      const payload = JSON.stringify(valid);
+      const previous = modern ? invocations.get(requestId) : null;
+      if (previous) return previous.payload === payload ? previous.promise : {executed:false,reason:'request_id_reused'};
+      if (modern && invocations.size >= 100) return {executed:false,reason:'session_action_limit'};
+      const finish = (status, value, reason) => ({ executed:status === 'success', ...(reason ? {reason} : {}),
+        ...(modern ? { result:{requestId,action:valid,...publicResult(value,spec,status)} } : {}) });
+      const execute = async () => {
+        if (signal?.aborted) return finish('cancelled',{},'cancelled');
+        const handler = Object.hasOwn(handlers,valid.id) ? handlers[valid.id] : null;
+        if (typeof handler !== 'function') return finish('error',{code:'handler_missing'},'handler_missing');
+        const control = new AbortController();
+        let timer, abort;
+        try {
+          const stopped = new Promise(resolve => {
+            abort = () => {control.abort();resolve(finish('unknown',{code:'execution_interrupted'},'execution_interrupted'));};
+            signal?.addEventListener('abort',abort,{once:true});
+            if (signal?.aborted) abort();
+            timer = setTimeout(abort,timeoutMs);
+          });
+          const work = Promise.resolve().then(() => {
+            if (control.signal.aborted) return finish('cancelled',{},'cancelled');
+            return handler({...valid.params},{requestId,idempotencyKey:requestId,signal:control.signal});
+          }).then(value => {
+            if (modern && value !== false && !plain(value)) return finish('unknown',{},'handler_unconfirmed');
+            if (value === false || value?.ok === false) return finish('error',value,'handler_rejected');
+            if (modern && value?.ok !== true) return finish('unknown',{},'handler_unconfirmed');
+            return finish('success',value);
+          }).catch(() => finish(modern ? 'unknown' : 'error',{},'handler_failed'));
+          return await Promise.race([work,stopped]);
+        } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+      };
+      const promise = execute();
+      if (modern) invocations.set(requestId,{payload,promise});
+      return promise;
     },
-    get ids() { return [...allowed.keys()]; }
+    get ids() {return [...allowed.keys()];},
+    definition(id) {const spec=allowed.get(id);return spec ? structuredClone(spec) : null;}
   });
 }

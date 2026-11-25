@@ -1,4 +1,5 @@
 import { askProvider } from './providers/index.mjs';
+import { validateActionResult, interactiveAction } from './action-contract.mjs';
 import { loadBusinessKnowledge, KnowledgeUnavailableError, verifiedRevision } from './knowledge-store.mjs';
 import { ProviderError, providerFailurePayload } from './providers/shared.mjs';
 import { readActions, askActionProvider, ActionConfigurationError } from './client-actions.mjs';
@@ -10,7 +11,7 @@ const MAX_MESSAGE = 2000;
 const MAX_HISTORY = 8;
 const MAX_HISTORY_ITEM = 1000;
 const MAX_REPLY = 4000;
-const RUNTIME_VERSION = '1.6.0';
+const RUNTIME_VERSION = '1.8.0';
 
 function responseJson(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
@@ -125,6 +126,12 @@ export default {
       if (limits?.maintenance || env.FALCO_MAINTENANCE === 'true') return error(status = 'maintenance', 503, diagnosticHeaders);
       if (limits && !await botVerified(request, env, limits, parsed.body.turnstileToken)) return error(status = 'bot_verification_required', 403, diagnosticHeaders);
       const actions = readActions(env, { strict: true });
+      if (parsed.body.actionResult !== undefined) {
+        if (parsed.body.actionProtocol !== 2) return error(status = 'invalid_action_result', 400, diagnosticHeaders);
+        const result = validateActionResult(parsed.body.actionResult, actions);
+        if (!result) return error(status = 'invalid_action_result', 400, diagnosticHeaders);
+        payload.actionResult = result;
+      }
       if (limits && env.PROVIDER !== 'mock') {
         try {
           meter = budgetStub(env);
@@ -145,8 +152,13 @@ export default {
       const report = metrics => { usage = metrics; };
       if (actions.length) {
         const result = await askActionProvider({ env, instructions, ...payload, actions, report });
+        if (result.action && interactiveAction(actions.find(a => a.id === result.action.id)) && parsed.body.actionProtocol !== 2) {
+          status = 'ok';
+          return responseJson({reply:'Esta acción necesita la versión actualizada del asistente de la página. Actualiza el frontend kit antes de enviar la solicitud.'},200,diagnosticHeaders);
+        }
         status = 'ok';
-        return responseJson({ reply: String(result.reply).slice(0, MAX_REPLY), ...(result.action ? { action: result.action } : {}) }, 200, diagnosticHeaders);
+        return responseJson({ reply: String(result.reply).slice(0, MAX_REPLY), ...(result.action ? { action: result.action,
+          ...(interactiveAction(actions.find(a => a.id === result.action.id)) ? { actionRequestId: crypto.randomUUID(), actionDefinition:actions.find(a => a.id === result.action.id) } : {}) } : {}) }, 200, diagnosticHeaders);
       }
       const reply = await askProvider({ env, instructions, ...payload, report });
       status = 'ok';

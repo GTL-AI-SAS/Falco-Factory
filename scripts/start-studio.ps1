@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 if (-not (Test-Path '.\package.json')) { throw 'Falco Factory package.json not found.' }
 $nodeVersion = [version](node.exe -p 'process.versions.node')
-if ($nodeVersion -lt [version]'22.12.0') { throw 'Falco Factory v1.6.1 requires Node.js 22.12.0 or newer.' }
+if ($nodeVersion -lt [version]'22.12.0') { throw 'Falco Factory v1.8.0 requires Node.js 22.12.0 or newer.' }
 $needsInstall = -not (Test-Path '.\node_modules\wrangler\bin\wrangler.js') -or -not (Test-Path '.\package-lock.json')
 if (-not $needsInstall) {
   node.exe -e "try { const p=require('./package.json'), w=require('./node_modules/wrangler/package.json'), l=require('./package-lock.json'); process.exit(w.version===p.devDependencies.wrangler && l.packages[''].devDependencies.wrangler===p.devDependencies.wrangler ? 0 : 1) } catch { process.exit(1) }"

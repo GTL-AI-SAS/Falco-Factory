@@ -60,10 +60,65 @@ export async function mountFalcoWidget(target, overrides = {}) {
     privacy.hidden = !privacy.textContent.trim();
   }
   input.placeholder = config.placeholder || 'Write a message';
-  const client = createFalcoClient({ endpoint: config.endpoint, timeoutMs: config.timeoutMs, maxHistory: config.maxHistory });
+  const client = createFalcoClient({ endpoint: config.endpoint, timeoutMs: config.timeoutMs, maxHistory: config.maxHistory, actions:falcoActions });
   const actions = createActionController(falcoActions, overrides.actionHandlers ?? {});
   let destroyed = false;
   let busy = false;
+  let cancelConfirmation;
+
+  function confirmAction(action, spec) {
+    return new Promise(resolve => {
+      const card = document.createElement('div'); card.className = 'falco__confirmation'; card.setAttribute('role','group'); card.setAttribute('aria-label','Confirmar acción');
+      const title = document.createElement('strong'); title.textContent = 'Confirma antes de enviar';
+      const description = document.createElement('p'); description.textContent = spec.description;
+      const values = document.createElement('dl');
+      for (const [key,value] of Object.entries(action.params)) {
+        const label = document.createElement('dt'); label.textContent = spec.parameters[key].description || key;
+        const text = document.createElement('dd'); text.textContent = String(value); values.append(label,text);
+      }
+      const controls = document.createElement('div'); controls.className = 'falco__confirmation-buttons';
+      const yes = document.createElement('button'); yes.type='button';yes.textContent='Confirmar';yes.dataset.falcoConfirm='';
+      const no = document.createElement('button'); no.type='button';no.textContent='Cancelar';no.dataset.falcoCancel='';
+      controls.append(yes,no); card.append(title,description,values,controls);messages.append(card);messages.scrollTop=messages.scrollHeight;
+      let settled=false;
+      const done = accepted => {
+        if(settled)return;settled=true;yes.disabled=true;no.disabled=true;
+        lifecycle.signal.removeEventListener('abort',cancel);cancelConfirmation=null;
+        const outcome=document.createElement('p');outcome.textContent=accepted?'Enviando…':'Acción cancelada; no se envió la solicitud.';card.append(outcome);
+        resolve(accepted);
+      };
+      const cancel=()=>done(false);cancelConfirmation=cancel;
+      yes.addEventListener('click',()=>done(true),{once:true});no.addEventListener('click',cancel,{once:true});
+      lifecycle.signal.addEventListener('abort',cancel,{once:true});
+      if(lifecycle.signal.aborted)cancel();else yes.focus();
+    });
+  }
+
+  async function runInteractiveAction(action, requestId) {
+    const spec=actions.definition(action.id);
+    if(!spec){client.abandonActionResult();throw new Error('La acción no está configurada en esta página.');}
+    const confirmed=spec.requiresConfirmation ? await confirmAction(action,spec) : false;
+    if(destroyed)return;
+    const execution=spec.requiresConfirmation && !confirmed
+      ? {result:{requestId,action,status:'cancelled'}}
+      : await actions.dispatch(action,{requestId,confirmed,signal:lifecycle.signal,timeoutMs:config.actionTimeoutMs ?? 30000});
+    if(destroyed)return;
+    if(!execution.result){client.abandonActionResult();throw new Error('No se ejecutó la acción: revisa su configuración y los datos.');}
+    status.textContent='Preparando la respuesta…';
+    try {
+      const turnstileToken=typeof config.getTurnstileToken==='function'?await config.getTurnstileToken():undefined;
+      const result=await client.completeAction(execution.result,{signal:lifecycle.signal,turnstileToken});
+      if(!destroyed){status.textContent='';message('assistant',result.reply);}
+    } catch {
+      const result=execution.result;
+      client.abandonActionResult(execution.result);
+      if(!destroyed){
+        const summary=result.status==='success'?'La página confirmó la operación.':result.status==='cancelled'?'La operación fue cancelada.':result.status==='unknown'?'No se pudo confirmar el resultado. Verifica su estado antes de volver a enviar.':'La página informó que la operación no se completó.';
+        message('assistant',summary+(result.message?' '+result.message:'')+(result.data?' '+JSON.stringify(result.data):''));
+        status.dataset.error='true';status.textContent='No se pudo obtener la explicación de Falco; se muestra el resultado reportado por la página.';
+      }
+    }
+  }
 
   function message(role, content) {
     const el = document.createElement('div');
@@ -74,11 +129,12 @@ export async function mountFalcoWidget(target, overrides = {}) {
   }
   function setOpen(isOpen) {
     if (destroyed) return;
+    if (!isOpen) cancelConfirmation?.();
     panel.hidden = !isOpen;
     launcher.setAttribute('aria-expanded', String(isOpen));
     if (isOpen) input.focus(); else launcher.focus();
   }
-  function onKeydown(e) { if (e.key === 'Escape' && !panel.hidden) setOpen(false); }
+  function onKeydown(e) { if (e.key === 'Escape' && !panel.hidden) {if(cancelConfirmation){e.preventDefault();cancelConfirmation();}else setOpen(false);} }
   async function onSubmit(e) {
     e.preventDefault();
     if (destroyed || busy) return;
@@ -93,10 +149,12 @@ export async function mountFalcoWidget(target, overrides = {}) {
     input.value = '';
     try {
       const turnstileToken = typeof config.getTurnstileToken === 'function' ? await config.getTurnstileToken() : undefined;
-      const { reply, action } = await client.send(text, { turnstileToken, signal: lifecycle.signal });
+      const { reply, action, actionRequestId } = await client.send(text, { turnstileToken, signal: lifecycle.signal });
       if (!destroyed) {
         status.textContent = '';
-        if (action) {
+        if (action && actionRequestId) {
+          await runInteractiveAction(action,actionRequestId);
+        } else if (action) {
           message('assistant', config.actionAttemptMessage ?? 'Voy a intentar realizar la acción solicitada.');
           const result = await actions.dispatch(action);
           if (result.executed && !destroyed) {

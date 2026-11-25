@@ -8,6 +8,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("FALCO Factory Studio")]
 [assembly: AssemblyCompany("GTL AI")]
 [assembly: AssemblyDescription("Opens the Falco Studio launcher in this folder")]
+[assembly: AssemblyVersion("1.8.0.0")]
+[assembly: AssemblyFileVersion("1.8.0.0")]
 
 internal static class StudioLauncher
 {
@@ -26,7 +28,19 @@ internal static class StudioLauncher
                 "FALCO Factory Studio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return 1;
         }
-        if (args.Length > 1 || (args.Length == 1 && args[0] != "--check")) return 2;
+        string launchArguments = "";
+        if (args.Length == 1 && args[0] == "--check") launchArguments = " --check";
+        else for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--no-open" || args[i] == "--exit-on-close") launchArguments += " " + args[i];
+            else if (args[i] == "--port" && i + 1 < args.Length)
+            {
+                int port;
+                if (!int.TryParse(args[++i], out port) || port < 1024 || port > 65535) return 2;
+                launchArguments += " --port " + port;
+            }
+            else return 2;
+        }
         try
         {
             string logDirectory = Path.Combine(root, ".falco-operations");
@@ -38,7 +52,7 @@ internal static class StudioLauncher
                 log.AutoFlush = true;
                 process.StartInfo = new ProcessStartInfo {
                     FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe"),
-                    Arguments = "/d /c " + Path.GetFileName(launcher) + (args.Length == 1 ? " --check" : ""),
+                    Arguments = "/d /c " + Path.GetFileName(launcher) + launchArguments,
                     WorkingDirectory = root,
                     UseShellExecute = false,
                     CreateNoWindow = true,

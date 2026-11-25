@@ -16,7 +16,7 @@ process.once('SIGTERM', () => aborter.abort());
 function usage() {
   console.log(`FALCO FACTORY v${VERSION}\n\n` +
 `Generate: npm run falco:new -- --name falco-gallinas --business "Gallinas y Valientes" --provider mock --origin http://localhost:3000 --faq ./examples/gallinas/faq.md --deploy\n\n` +
-`Options: --name --business --provider mock|openai|gemini --model --origin --origins --faq --instructions --actions ./examples/gallinas/actions.json --knowledge-mode embedded|kv --output --deploy --dry-run --force --account-id --rate-limit --rate-namespace --mock-reply --clear-faq --clear-instructions --check-provider --observability\n` +
+`Options: --name --business --provider mock|openai|gemini --model --origin --origins --faq --instructions --actions ./examples/gallinas/actions.json --knowledge-mode embedded|kv --output --deploy --dry-run --force --account-id --auth-profile --rate-limit --rate-namespace --mock-reply --clear-faq --clear-instructions --check-provider --observability\n` +
 `Smoke:    npm run falco:smoke -- --url https://my-worker.example.workers.dev --chat [--business "Name"]\n` +
 `Auth:     npm run falco:auth:status | npm run falco:auth:secure\n\n` +
 `--dry-run previews and does not write files. --force backs up the same project before regeneration. Remote updates require a matching deployment baseline.\nDoctor: falco doctor [--cloud]\nRecover interrupted regeneration: falco recover <absolute-project-path> <backup-id>\n`);
@@ -104,7 +104,7 @@ async function main() {
     console.log('Starting the official Wrangler OAuth login with OS keychain storage.');
     console.log('On Windows, Wrangler stores the encryption key in Windows Credential Manager.');
     console.log('If a legacy plaintext OAuth file exists, Wrangler migrates it during this flow.');
-    await runWrangler(['login', '--use-keyring'], { stdio: 'inherit', timeoutMs: 600000 });
+    await runWrangler(['login', '--use-keyring'], { stdio: 'inherit', signal: aborter.signal, timeoutMs: 600000, env: { ...process.env, CLOUDFLARE_AUTH_USE_KEYRING: 'true' } });
     const after = await getCloudflareAuthDiagnostics({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID });
     printAuthDiagnostics(after);
     if (!after.connected || after.authMethod !== 'oauth' || !after.secureStorage) {

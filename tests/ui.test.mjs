@@ -82,7 +82,7 @@ test('existing Worker chat works without a deployment job or local source and us
   assert.equal(result.body.reply, 'Hello from the existing Falco');
   assert.equal(result.body.action.id, 'demo.open');
   assert.equal(called.endpoint, 'https://falco-ui-test.demo.workers.dev/chat');
-  assert.deepEqual(JSON.parse(called.options.body), { message: 'Hola', history: [] });
+  assert.deepEqual(JSON.parse(called.options.body), { message: 'Hola', history: [], actionProtocol:2 });
   assert.equal(called.options.headers.Authorization, undefined, 'Cloudflare management credentials are not sent to chat');
   assert.equal(env.app.jobs.size, 0);
   assert.deepEqual(await fs.readdir(env.tmp), []);

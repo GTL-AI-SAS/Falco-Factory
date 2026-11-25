@@ -9,8 +9,8 @@ import { selectAccount } from '../lib/deploy.mjs';
 import { VERSION, WRANGLER_VERSION } from '../lib/args.mjs';
 import { smoke } from '../lib/smoke.mjs';
 
-test('v1.6.3 retains the Wrangler release that supports OS keyring authentication',()=>{
-  assert.equal(VERSION,'1.6.3');
+test('v1.8.0 retains the Wrangler release that supports OS keyring authentication',()=>{
+  assert.equal(VERSION,'1.8.0');
   assert.equal(WRANGLER_VERSION,'4.166.0');
 });
 

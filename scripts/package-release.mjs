@@ -5,7 +5,7 @@ import { zipFiles } from '../lib/zip.mjs';
 import { VERSION, WRANGLER_VERSION } from '../lib/args.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const excludes = new Set(['.git','node_modules','.generated','.wrangler','.falco-operations','dist','coverage','test-results']);
+const excludes = new Set(['.git','node_modules','.generated','.wrangler','.falco-operations','.falco-connections.json','dist','coverage','test-results']);
 const includes = new Set(['.github','assets','bin','docs','examples','frontend-kit-template','lib','scripts','templates','tests','ui']);
 const selected = new Map();
 let packageLockCurrent = false;
@@ -32,6 +32,10 @@ async function addTree(directory = '') {
 }
 
 await addTree();
+for (const required of ['Falco Studio.exe','main.cmd','package.json','package-lock.json','lib/cloudflare-auth.mjs',
+  'lib/cloudflare-api.mjs','lib/wrangler-process.mjs','lib/project-connection.mjs','ui/connections.js','docs/CLOUDFLARE_CONNECTIONS.md']) {
+  if (!selected.has(required)) throw new Error('Release is missing ' + required + '. Build the Studio launcher and verify the pinned lockfile before packaging.');
+}
 const folder = path.resolve(process.argv[2] ?? path.join(root, 'dist'));
 await fs.mkdir(folder, { recursive: true });
 const output = path.join(folder, 'GTL_AI_Falco_Factory_v' + VERSION + '.zip');

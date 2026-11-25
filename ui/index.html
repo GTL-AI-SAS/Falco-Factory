@@ -49,22 +49,40 @@
         <details class="auth-diagnostics" id="authDiagnosticsPanel">
           <summary>Authentication &amp; permissions</summary>
           <div class="auth-diagnostics-body">
+            <label for="authConnectionSelect">Connection</label><select id="authConnectionSelect" class="styled-select"><option value="">Legacy default</option></select>
+            <div><span>Profile</span><strong id="authProfileValue">Legacy default</strong></div>
+            <label for="authAccountSelect">Selected account</label><select id="authAccountSelect" class="styled-select"><option value="">Select an account</option></select>
             <div><span>Method</span><strong id="authMethodValue">Checking…</strong></div>
             <div><span>Credential storage</span><strong id="authStorageValue">Checking…</strong></div>
             <div><span>Workers read access</span><strong id="authWorkersReadValue">Not checked</strong></div>
             <div><span>Deploy / KV write</span><strong id="authWriteValue">Not tested</strong></div>
             <p id="authRecommendation">Diagnostics do not deploy Workers or modify KV.</p>
             <button type="button" class="auth-small-button" id="refreshAuthDiagnostics">Refresh diagnostics</button>
+            <button type="button" class="auth-small-button" id="openConnections">Manage Cloudflare connections</button>
             <button type="button" class="auth-small-button" id="copyAuthSecureCommand">Copy secure OAuth command</button>
           </div>
         </details>
         <button type="button" id="soundToggle" class="auth-small-button sound-toggle" aria-pressed="true" aria-label="Interface sounds" title="Mute interface sounds"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4 4.5 7H2v4h2.5L8 14V4Z"/><path class="sound-waves" d="M11 6a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10"/><path class="sound-muted" d="m11 7 4 4m0-4-4 4"/></svg><span id="soundLabel">Sounds on</span></button>
-        <div class="side-footer"><span>127.0.0.1</span><span>v1.6.3</span></div>
+        <div class="side-footer"><span>127.0.0.1</span><span>v1.8.0</span></div>
       </div>
       </div>
     </aside>
 
     <main class="workspace">
+      <section class="panel connections-panel" id="connectionManager" hidden aria-label="Cloudflare connections">
+        <header class="panel-header"><div><h2>Cloudflare connections</h2><p>Connect identities once. Choose a connection and account separately for each project.</p></div><button class="btn ghost" type="button" id="closeConnections">Close</button></header>
+        <div class="action-help-row"><button class="btn outline" type="button" id="addConnection">+ Add Cloudflare connection</button><button class="btn ghost" type="button" id="refreshConnections">Refresh connections</button></div>
+        <p id="connectionNotice" class="helper" role="status" aria-live="polite"></p>
+        <div id="connectionCards" class="connection-cards"></div>
+        <div id="connectionEditor" class="connection-editor" hidden>
+          <h3 id="connectionEditorTitle">Add Cloudflare connection</h3>
+          <div class="form-grid two"><div class="field"><label for="connectionName">Connection name</label><input id="connectionName" maxlength="80" placeholder="GTL AI" /></div><div class="field"><label for="connectionProfile">Wrangler profile name</label><input id="connectionProfile" maxlength="64" placeholder="gtl-ai" pattern="[a-zA-Z0-9_-]+" /></div></div>
+          <p class="helper">Your browser opens Cloudflare authorization. Sign in with the desired identity and select the accounts to authorize. Credentials stay in Wrangler’s encrypted OS storage.</p>
+          <div class="field" id="connectionDefaultField" hidden><label for="connectionDefault">Default account</label><select class="styled-select" id="connectionDefault"></select></div>
+          <div class="action-help-row"><button type="button" class="btn outline" id="authenticateConnection">Connect in browser</button><button type="button" class="btn ghost" id="saveConnection" hidden>Save connection details</button><button type="button" class="btn ghost" id="dismissConnectionEditor">Cancel</button></div>
+        </div>
+        <div id="connectionProgress" hidden><p id="connectionProgressText" role="status" aria-live="polite"></p><button type="button" class="btn ghost" id="cancelConnectionAuth">Cancel authentication</button></div>
+      </section>
       <header class="topbar" id="workspaceHeader">
         <div class="breadcrumb"><span>Studio</span><span class="slash" aria-hidden="true">/</span><strong id="workspaceMode">Create new</strong></div>
         <div class="topbar-right"><span class="local-indicator"><i></i> Local Studio</span></div>
@@ -148,7 +166,7 @@
                 <header class="panel-header"><span class="section-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2 4 10h4l-1 6 7-9h-5l1-5Z"/></svg></span><div><h2>Client actions</h2><p>Define the website interactions this assistant can suggest.</p></div></header>
                 <div class="actions-editor field full">
                   <div class="label-row"><label for="actions">Action manifest</label><span class="tiny-tag">JSON</span></div>
-                  <p class="helper">Use action IDs, descriptions and closed parameter enums. An empty array keeps the assistant chat-only.</p>
+                  <p class="helper">Define actions with fixed options, text, dates, numbers or yes/no fields. API operations use a function registered by your website, with confirmation and public results. An empty array keeps the assistant chat-only.</p>
                   <textarea id="actions" rows="6" spellcheck="false" aria-describedby="actionsHelp">[]</textarea>
                   <div class="action-help-row"><span class="helper" id="actionsHelp">The Gallinas preset adds <code>demo.open</code> for three menu options.</span><button class="btn ghost" type="button" id="clearActions">Clear actions</button><button class="btn ghost" type="button" id="useGallinasActions">Use Gallinas preset</button><button class="btn ghost" type="button" id="createVisualActions">Build actions</button></div>
                 </div>
@@ -161,6 +179,8 @@
 
               <section class="panel" id="sectionLaunch">
                 <header class="panel-header"><span class="section-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 13.5 13.5 4.5m-6 0h6v6"/></svg></span><div><h2>Launch Worker</h2><p>Review the plan, generate project files, or deploy to Cloudflare.</p></div></header>
+                <div class="form-grid two"><div class="field"><label for="createAuthProfile">Cloudflare connection</label><select class="styled-select" id="createAuthProfile"><option value="">Legacy default</option></select></div><div class="field"><label for="createAccountSelect">Deployment account</label><select class="styled-select" id="createAccountSelect"><option value="">Select an account</option></select></div></div>
+                <p class="helper" id="deploymentTarget">Choose the connection and account for this project before deploying.</p>
                 <details class="advanced" id="advanced"><summary><span class="settings-glyph">⚙</span> Advanced configuration <span class="summary-right">Rate limits, account, output & replacement <span>⌄</span></span></summary>
                   <div class="advanced-content">
                     <div class="form-grid two"><div class="field"><label for="rateLimit">Rate limit / minute</label><input id="rateLimit" type="number" min="1" max="1000" value="10" /><span class="helper">Per IP, per Cloudflare location.</span></div><div class="field"><label for="outputFolder">Local output folder</label><input id="outputFolder" placeholder="Auto: same as Worker name" spellcheck="false" /><span class="helper">Inside <code>.generated/</code>.</span></div></div>
@@ -244,6 +264,7 @@
               <section class="panel cloud-catalog-panel" id="cloudCatalogPanel">
                 <header class="panel-header"><span class="section-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="13" height="13" rx="2"/><path d="M2.5 10h13M6 6h.01M6 13h.01"/></svg></span><div><h2>Cloudflare Workers <span class="remote-count" id="remoteWorkerCount">—</span></h2><p>Test chat, load a Worker, or export its frontend kit.</p></div></header>
                 <div class="cloud-controls">
+                  <div class="field cloud-account-field"><label for="remoteAuthProfile">Connection</label><select class="styled-select" id="remoteAuthProfile"><option value="">Legacy default</option></select></div>
                   <div class="field cloud-account-field"><label for="remoteAccountSelect">Cloudflare account</label>
                     <select class="styled-select" id="remoteAccountSelect"><option value="">Automatic account selection</option></select></div>
                   <button type="button" class="btn cloud-refresh" id="refreshCloudWorkers"><span aria-hidden="true">↻</span> Refresh Workers</button>
@@ -278,7 +299,14 @@
                   <div><span>WORKER</span><strong id="managedWorker"></strong></div>
                   <div><span>PROVIDER</span><strong id="managedProvider"></strong></div>
                   <div><span>ACCOUNT</span><strong id="managedAccount"></strong></div>
+                  <div><span>CONNECTION</span><strong id="managedConnection"></strong></div>
                 </div>
+                <details class="import-project" id="projectConnectionEditor"><summary>Change project connection or account</summary>
+                  <div class="form-grid two"><div class="field"><label for="managedAuthProfile">Connection</label><select class="styled-select" id="managedAuthProfile"><option value="">Legacy default</option></select></div><div class="field"><label for="managedConnectionAccount">Cloudflare account</label><select class="styled-select" id="managedConnectionAccount"><option value="">Select an account</option></select></div></div>
+                  <p class="helper">Saving changes local routing only. Changing accounts leaves the original Worker and KV data in the old account; a future deployment creates resources in the new account.</p>
+                  <button type="button" class="btn outline" id="saveProjectConnection">Verify &amp; save connection</button>
+                  <p class="helper" id="projectConnectionStatus" role="status"></p>
+                </details>
                 <details class="import-project" id="importPanel"><summary>↳ Advanced: manually link source (only if auto-load failed)</summary>
                   <p>Paste the full path to your earlier <code>.generated\falco-gallinas-gemini</code> folder. This only copies Factory-managed source files; it never deploys. The Worker name and Cloudflare account must match the selected remote Worker.</p>
                   <div class="field"><label for="importPath">Existing local project folder (absolute path)</label><input type="text" id="importPath" placeholder="C:\Users\...\GTL_AI_Falco_Factory_v0.2_UN_CLIC\.generated\falco-gallinas-gemini" spellcheck="false" autocomplete="off" /></div>
@@ -383,7 +411,7 @@
           </div>
           
         </div>
-        <footer class="footer"><div class="footer-brand"><img src="/assets/falco-logo-dark.png" alt="FALCO" width="150" height="44" /><span>Factory Studio v1.6.3 · GTL AI</span></div><span>Cloudflare Workers</span></footer>
+        <footer class="footer"><div class="footer-brand"><img src="/assets/falco-logo-dark.png" alt="FALCO" width="150" height="44" /><span>Factory Studio v1.8.0 · GTL AI</span></div><span>Cloudflare Workers</span></footer>
       </div>
     </main>
   </div>
@@ -400,7 +428,7 @@
   <dialog id="actionDialog" aria-labelledby="actionDialogTitle">
     <header class="action-dialog-header">
       <span class="section-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2 4 10h4l-1 6 7-9h-5l1-5Z"/></svg></span>
-      <div><h2 id="actionDialogTitle">Client actions</h2><p>Set the action ID, describe when to use it, and define allowed parameter values.</p></div>
+      <div><h2 id="actionDialogTitle">Client actions</h2><p>Define the inputs, confirmation and public result fields. Your website connects each action to its API function.</p></div>
     </header>
     <div id="visualActionRows" class="action-dialog-body"></div>
     <footer class="action-dialog-footer">

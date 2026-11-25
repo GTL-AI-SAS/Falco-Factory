@@ -19,7 +19,7 @@ const good = { message:'Hola, ¿qué ofrecen?', history:[] };
 test('health works independently from provider', async () => {
   const env = { ...baseEnv(), PROVIDER:'openai' };
   const got = await invoke(req('/health'), env);
-  assert.deepEqual(got.body, { status:'ok', service:'falco', business:'Gallinas y Valientes', runtimeVersion:'1.6.0' });
+  assert.deepEqual(got.body, { status:'ok', service:'falco', business:'Gallinas y Valientes', runtimeVersion:'1.8.0' });
 });
 test('mock /chat normalizes output', async () => {
   const got = await invoke(req('/chat', { method:'POST', origin:'https://restaurant.example', body:good }));

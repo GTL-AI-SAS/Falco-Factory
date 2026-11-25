@@ -10,3 +10,7 @@ ABRIR_FALCO_STUDIO.lnk
 ABRIR_FALCO_STUDIO.exe
 Falco Studio.exe
 falco-launcher-*.exe
+
+.falco-connections.json
+.falco-connections.json.*.tmp
+.falco-operations/

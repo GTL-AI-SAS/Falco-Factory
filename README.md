@@ -1,4 +1,14 @@
-# Falco Factory v1.6.3
+# Falco Factory v1.7.0
+
+## v1.7.0 ? Cloudflare connections
+
+Open **Authentication & permissions ? Manage Cloudflare connections** to add identities through browser OAuth, verify secure storage, and reauthenticate without logging out. Choose a connection and an explicit account for each project. Manage Workers keeps the selected identity for remote operations.
+
+Named connections require encrypted OS storage. Environment API tokens remain supported through **Legacy default**; Factory blocks them from silently overriding a named identity. Account changes and local profile deletion have explicit safeguards and retain remote resources.
+
+- [Connection setup, assignment, recovery, removal and HTTP 403 troubleshooting](docs/CLOUDFLARE_CONNECTIONS.md)
+- [Release notes](docs/releases/RELEASE_NOTES_v1.7.0.md) ? [Upgrade guide](docs/upgrades/UPGRADE_v1.7.0.md) ? [Validation](docs/releases/VALIDATION_v1.7.0.md)
+
 
 Falco Factory crea y administra un Worker Cloudflare por negocio. Studio incluye gestión de versiones locales y remotas, controles de consumo y exportación de kits de integración.
 
@@ -10,7 +20,7 @@ Studio plays distinct, clearly audible cues when a Cloudflare account or Falco f
 
 The `assets/brand/falco-brushstroke-cinematic.mp4` film plays at 1.25× speed (about four seconds) as a muted opening intro while Studio loads in parallel, then fades into the workspace. Playback starts directly from the video's first decoded frame without a separate placeholder logo. **Skip intro** uses the same short fade; reduced-motion preferences skip autoplay and transitions, and unavailable media cannot block startup. The sidebar's **FALCO cinematic** card keeps the original film available with playback controls and **Watch full intro** to replay it.
 
-Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, loading reports an error and keeps the local files. Restart Studio and reload the browser after updating the Factory source.
+Loading a linked Worker now refreshes its deployed settings, Client Actions, and exact Embedded or active KV knowledge before opening the editor. This prevents an older local project from replacing live configuration during an action-only edit. Studio saves a local snapshot before replacing stale files and records the deployment baseline without redeploying. If the deployed knowledge cannot be recovered exactly, Studio reports the refresh error and shows the saved local configuration; remote mutation safeguards remain enforced. Restart Studio and reload the browser after updating the Factory source.
 
 ## Project directories
 

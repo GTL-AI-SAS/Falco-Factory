@@ -1,5 +1,7 @@
+import { normalizeActions } from './action-contract.js';
 import { createStudioSounds } from './sounds.js';
 import { createStudioIntro } from './intro.js';
+import { createConnectionsUi } from './connections.js';
 
 /* Falco Factory Studio — local-only client. Only the sound preference is stored. */
 (() => {
@@ -63,6 +65,10 @@ import { createStudioIntro } from './intro.js';
     if (!response.ok) throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     return result;
   }
+  const connectionUi = createConnectionsUi({ api, getProject: () => managed,
+    onAssigned: async project => { await loadProjects(); await loadManagedProject(project.folder, { force: true, refresh: false }); },
+    onRemoteChange: () => void refreshRemoteWorkers(), onDiagnostics: () => void checkCloudflare()
+  });
   async function connectStudioSession() {
     if (!browserManaged || pageLeaving || sessionController) return;
     const control = new AbortController();
@@ -132,7 +138,7 @@ import { createStudioIntro } from './intro.js';
     try { parsed = JSON.parse(value); } catch { throw Error('Client actions must be a valid JSON array.'); }
     if (!Array.isArray(parsed) || parsed.length > 8) throw Error('Use an array with at most 8 client actions.');
     if (byteLength(JSON.stringify(parsed)) > 3900) throw Error('Client actions exceed the Cloudflare binding limit (3.9 KB).');
-    return parsed;
+    return normalizeActions(parsed);
   }
   function updateActionVerificationOptions() {
     const update = (manifestId, areaId, checkId, helpId, supported) => {
@@ -174,7 +180,7 @@ import { createStudioIntro } from './intro.js';
       instructions: $('instructions').value, faq: $('faq').value, knowledgeMode: knowledgeMode(), actions,
       mockReply: $('mockReply').value.trim(),
       rateLimit: $('rateLimit').value.trim(), outputFolder: $('outputFolder').value.trim(),
-      accountId: $('accountId').value.trim(), force: $('force').checked,
+      accountId: $('accountId').value.trim(), authProfile: $('createAuthProfile').value, force: $('force').checked,
       confirmName: $('confirmName').value.trim(),
       clearFaq: $('force').checked && $('clearFaq').checked,
       clearInstructions: $('force').checked && $('clearInstructions').checked, clearKnowledge: $('clearKnowledge').value.trim(),
@@ -404,7 +410,7 @@ import { createStudioIntro } from './intro.js';
       const resp = await fetch('/api/frontend-kit/export', {
         method:'POST', cache:'no-store',
         headers:{ 'Content-Type':'application/json', 'X-Falco-Local-Token': token },
-        body: JSON.stringify({ accountId: item.accountId, name: item.name,
+        body: JSON.stringify({ accountId: item.accountId, authProfile: item.authProfile, name: item.name,
           customDomain: $('kitDomain').value.trim(), siteOrigin: $('kitSite').value.trim(),
           privacy: { url: $('kitPrivacyUrl').value.trim(), notice: $('kitPrivacyNotice').value.trim() } }),
       });
@@ -440,7 +446,7 @@ import { createStudioIntro } from './intro.js';
     button.textContent = 'Loading…';
     setManageError('');
     try {
-      const data = await api('/api/cloudflare/workers/load', { method:'POST', data:{ accountId:item.accountId, name:item.name }});
+      const data = await api('/api/cloudflare/workers/load', { method:'POST', data:{ accountId:item.accountId, authProfile:item.authProfile, name:item.name }});
       await loadProjects();
       await loadManagedProject(data.folder, { force:true });
       if (managed?.name !== item.name) throw new Error('Loaded project does not match the selected Worker.');
@@ -467,9 +473,9 @@ import { createStudioIntro } from './intro.js';
     button.textContent = 'Deleting…';
     setManageError('');
     try {
-      const result = await api('/api/cloudflare/workers/delete', { method:'POST', data:{ accountId:item.accountId, name:item.name, confirmation:typed, acknowledge:'DELETE' }});
+      const result = await api('/api/cloudflare/workers/delete', { method:'POST', data:{ accountId:item.accountId, authProfile:item.authProfile, name:item.name, confirmation:typed, acknowledge:'DELETE' }});
       if (!result.deleted || result.name !== item.name) throw new Error('Deletion was not confirmed by Cloudflare. Refresh to check.');
-      if (managed?.name === item.name) {
+      if (managed?.name === item.name && managed.accountId === item.accountId && (managed.authProfile || '') === (item.authProfile || '')) {
         managed = null;
         ++manageChatSerial;
         $('manageLiveLinks').hidden = true;
@@ -509,7 +515,7 @@ import { createStudioIntro } from './intro.js';
     $('manageIdentityName').textContent = item.name;
     $('manageIdentitySub').textContent = 'Cloudflare remote · not linked to this Studio';
     updateManageDiff();
-    remoteSelected = { name: item.name, accountId: item.accountId };
+    remoteSelected = { name: item.name, accountId: item.accountId, authProfile: item.authProfile };
     $('remoteSelection').hidden = false;
     $('remoteSelectedName').textContent = item.name;
     $('remoteSelectedMessage').textContent = item.source === 'account-mismatch'
@@ -528,10 +534,12 @@ import { createStudioIntro } from './intro.js';
       const manual = $('remoteAccountManual').value.trim();
       const requested = manual || $('remoteAccountSelect').value;
       if (requested && !/^[a-f0-9]{32}$/i.test(requested)) throw new Error('Cloudflare Account ID must be 32 hexadecimal characters.');
-      const query = requested ? `?accountId=${encodeURIComponent(requested)}` : '';
+      const params = new URLSearchParams({ authProfile: $('remoteAuthProfile').value });
+      if (requested) params.set('accountId', requested);
+      const query = '?' + params;
       const data = await api(`/api/cloudflare/workers${query}`);
       if (requestId !== remoteFetchSerial) return;
-      remoteRows = data.workers;
+      remoteRows = data.workers.map(w => ({ ...w, authProfile: $('remoteAuthProfile').value }));
       remoteAccount = data.accountId;
       announceCloudflareAccount(data.accountId, { force: notify });
       cloudStatus(`${remoteRows.length} deployed Worker${remoteRows.length===1?'':'s'} found · account ${remoteAccount.slice(0,6)}…${remoteAccount.slice(-4)} · refreshed ${new Date(data.checkedAt).toLocaleTimeString()}`);
@@ -548,21 +556,6 @@ import { createStudioIntro } from './intro.js';
     } finally {
       if (requestId === remoteFetchSerial) { remoteFetching = false; $('refreshCloudWorkers').disabled = false; }
     }
-  }
-  function populateCloudAccounts(status) {
-    const select = $('remoteAccountSelect');
-    const chosen = select.value;
-    select.replaceChildren();
-    const option = document.createElement('option'); option.value = ''; option.textContent = 'Automatic account selection'; select.append(option);
-    const accounts = status.accounts || [];
-    for (const account of accounts) {
-      const el = document.createElement('option'); el.value = account.id;
-      el.textContent = `${account.name} · ${account.id.slice(0,6)}…${account.id.slice(-4)}`;
-      select.append(el);
-    }
-    if (chosen && accounts.some(a=>a.id===chosen)) select.value = chosen;
-    else if (status.selectedAccount && accounts.some(a=>a.id===status.selectedAccount)) select.value = status.selectedAccount;
-    else if (accounts.length === 1) select.value = accounts[0].id;
   }
   function currentManageChanges() {
     if (!managed) return { changed: false, faqChanged: false, instructionsChanged: false, originsChanged: false, actionsChanged: false };
@@ -647,7 +640,7 @@ import { createStudioIntro } from './intro.js';
       }
     } catch (err) { const row=document.createElement('div'); row.className='history-empty'; row.textContent=err.message; list.append(row); }
   }
-  async function loadManagedProject(folder, { force = false, notify = true } = {}) {
+  async function loadManagedProject(folder, { force = false, notify = true, refresh = true } = {}) {
     if (!folder) {
       ++manageLoadSerial;
       ++manageChatSerial;
@@ -677,8 +670,11 @@ import { createStudioIntro } from './intro.js';
       const route = `/api/projects/${encodeURIComponent(folder)}`;
       const local = await api(route);
       if (requestId !== manageLoadSerial) return;
-      const { project } = local.project.accountId
-        ? await api(route + '/refresh', { method: 'POST', data: {} }) : local;
+      let project = local.project;
+      if (project.accountId && refresh) {
+        try { ({ project } = await api(route + '/refresh', { method: 'POST', data: {} })); }
+        catch (error) { setManageError('Showing saved local configuration. Remote refresh failed: ' + error.message); }
+      }
       if (requestId !== manageLoadSerial) return;
       managed = project;
       initializeOperations(project);
@@ -705,6 +701,7 @@ import { createStudioIntro } from './intro.js';
       $('managedBusiness').textContent = project.business;
       $('managedWorker').textContent = project.name;
       $('managedProvider').textContent = `${project.provider} · ${project.model}`;
+      void connectionUi.loadProject(project);
       $('managedAccount').textContent = project.accountId ? project.accountId.slice(0,6)+'…'+project.accountId.slice(-4) : 'Not set';
       $('manageIdentityName').textContent = project.name;
       $('manageIdentitySub').textContent = `${project.business} · ${project.provider}`;
@@ -737,7 +734,7 @@ import { createStudioIntro } from './intro.js';
       $('projectCount').textContent = projects.length;
       if (remoteRows.length && remoteAccount) {
         remoteRows = remoteRows.map(item => {
-          const project = projects.find(p => p.name === item.name && p.accountId?.toLowerCase() === remoteAccount.toLowerCase());
+          const project = projects.find(p => p.name === item.name && p.accountId?.toLowerCase() === remoteAccount.toLowerCase() && (p.authProfile || '') === (item.authProfile || ''));
           return project ? { ...item, source:'linked', editable:true, folder:project.folder, business:project.business, provider:project.provider } : item;
         });
         renderRemoteWorkers();
@@ -1023,42 +1020,56 @@ import { createStudioIntro } from './intro.js';
     }
   }
 
-  function addVisualAction(action = { id: '', description: '', parameters: {} }) {
-    const root = $('visualActionRows');
-    if (root.children.length >= 8) return;
-    const row = document.createElement('section'); row.className = 'action-form-row';
-    const id = textField(row, 'Action ID', action.id);
-    textField(row, 'Description', action.description);
-    const parameters = Object.entries(action.parameters);
-    const group = document.createElement('fieldset');
-    group.className = 'action-parameters';
-    const title = document.createElement('legend');
-    title.textContent = 'Optional parameters';
-    group.append(title);
-    for (let i = 0; i < 3; i++) {
-      const parameter = parameters[i];
-      const details = document.createElement('details');
-      details.open = Boolean(parameter);
-      const summary = document.createElement('summary');
-      summary.textContent = 'Parameter ' + (i + 1);
-      const fields = document.createElement('div');
-      fields.className = 'parameter-fields';
-      const name = textField(fields, 'Name', parameter?.[0]);
-      textField(fields, 'Allowed values (one per line)', parameter?.[1].enum.join('\n'), true);
-      if (parameter) {
-        const tag = document.createElement('span');
-        tag.className = 'tiny-tag';
-        tag.textContent = parameter[0];
-        name.addEventListener('input', () => { tag.textContent = name.value; tag.hidden = !name.value.trim(); });
-        summary.append(tag);
-      }
-      details.append(summary, fields);
-      group.append(details);
+  function addVisualAction(action = { id:'',description:'',parameters:{} }) {
+    const root=$('visualActionRows');if(root.children.length>=8)return;
+    const row=document.createElement('section');row.className='action-form-row';
+    const id=textField(row,'Action ID',action.id);
+    const description=textField(row,'Description',action.description);
+    const confirm=document.createElement('input');confirm.type='checkbox';confirm.checked=action.requiresConfirmation===true;
+    formField(row,'Require confirmation before execution',confirm);
+    const resultFields=textField(row,'Public result fields (comma separated)',(action.resultFields || []).join(', '));
+    const help=document.createElement('p');help.className='helper';help.textContent='The host website registers the API function. Only these public result fields are sent back to Falco. Never add credentials.';row.append(help);
+    const group=document.createElement('fieldset');group.className='action-parameters';
+    const title=document.createElement('legend');title.textContent='Parameters (required unless unchecked)';group.append(title);
+    const readers=[];
+    for(let i=0;i<8;i++) {
+      const entry=Object.entries(action.parameters)[i], spec=entry?.[1] || {};
+      const details=document.createElement('details');details.open=Boolean(entry);
+      const summary=document.createElement('summary');summary.textContent='Parameter '+(i+1);
+      const fields=document.createElement('div');fields.className='parameter-fields';
+      const name=textField(fields,'Name',entry?.[0]);
+      const type=document.createElement('select');type.className='styled-select';
+      renderOptions(type,[['enum','Fixed options'],['string','Text'],['date','Date (YYYY-MM-DD)'],['integer','Integer'],['number','Number'],['boolean','Yes / no']]);
+      type.value=spec.enum?'enum':spec.type || 'enum';formField(fields,'Type',type);
+      const desc=textField(fields,'Field description',spec.description || '');
+      const required=document.createElement('input');required.type='checkbox';required.checked=spec.required!==false;formField(fields,'Required',required);
+      const values=textField(fields,'Allowed values (one per line)',spec.enum?.join('\n') || '',true);
+      const maximum=textField(fields,'Maximum text length',String(spec.maxLength ?? 100));maximum.type='number';maximum.min='1';maximum.max='500';
+      const minimum=textField(fields,'Minimum number',String(spec.minimum ?? 0));minimum.type='number';
+      const upper=textField(fields,'Maximum number',String(spec.maximum ?? 100));upper.type='number';
+      const refresh=()=>{values.closest('.field').hidden=type.value!=='enum';maximum.closest('.field').hidden=type.value!=='string';minimum.closest('.field').hidden=upper.closest('.field').hidden=!['integer','number'].includes(type.value);};
+      type.addEventListener('change',()=>{if(type.value!=='enum')confirm.checked=true;refresh();});refresh();
+      readers.push(()=>{
+        const key=name.value.trim();if(!key)return null;
+        const definition={type:type.value==='enum'?'string':type.value};
+        if(type.value==='enum')definition.enum=values.value.split('\n').map(v=>v.trim()).filter(Boolean);
+        if(type.value==='string'){definition.maxLength=Number(maximum.value);if(spec.minLength!==undefined)definition.minLength=spec.minLength;}
+        if(['integer','number'].includes(type.value)){definition.minimum=Number(minimum.value);definition.maximum=Number(upper.value);}
+        if(!required.checked)definition.required=false;else if(spec.required!==undefined)definition.required=true;
+        if(desc.value.trim())definition.description=desc.value.trim();
+        return [key,definition];
+      });
+      details.append(summary,fields);group.append(details);
     }
-    row.append(group);
-    removeButton(row);
-    root.append(row);
-    if ($('actionDialog').open) id.focus();
+    row.readAction=()=>{
+      const entries=readers.map(read=>read()).filter(Boolean);if(new Set(entries.map(e=>e[0])).size!==entries.length)throw Error('Each parameter name must be unique.');
+      const result={id:id.value.trim(),description:description.value.trim(),parameters:Object.fromEntries(entries)};
+      if(confirm.checked || action.requiresConfirmation!==undefined || entries.some(([,p])=>!p.enum))result.requiresConfirmation=confirm.checked;
+      const publicFields=resultFields.value.split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
+      if(publicFields.length || action.resultFields!==undefined)result.resultFields=publicFields;
+      return result;
+    };
+    row.append(group);removeButton(row);root.append(row);if($('actionDialog').open)id.focus();
   }
 
   function openActions(target) {
@@ -1072,18 +1083,7 @@ import { createStudioIntro } from './intro.js';
   }
 
   async function validateVisualActions(simulate) {
-    const actions = [...$('visualActionRows').children].map(row => {
-      const [id, description, ...fields] = [...row.querySelectorAll('input,textarea')].map(input => input.value.trim());
-      const parameters = [];
-      for (let i = 0; i < fields.length; i += 2) {
-        const [name, values] = fields.slice(i, i + 2);
-        if (name || values) {
-          if (parameters.some(([key]) => key === name)) throw new Error('Each parameter name must be unique.');
-          parameters.push([name, { type: 'string', enum: values.split('\n').map(value => value.trim()).filter(Boolean) }]);
-        }
-      }
-      return { id, description, parameters: Object.fromEntries(parameters) };
-    });
+    const actions = [...$('visualActionRows').children].map(row => row.readAction());
     const data = await api('/api/actions/validate', { method: 'POST', data: { actions, simulate } });
     if (simulate) {
       $('actionSimulation').textContent = data.simulation ? JSON.stringify(data.simulation) : 'Add an action to simulate it.';
@@ -1101,7 +1101,7 @@ import { createStudioIntro } from './intro.js';
     if (!window.confirm('Copy this existing Falco project into this Factory installation?')) return;
     try {
       const { project }=await api('/api/projects/import',{method:'POST',data:{sourcePath,
-        ...(remoteSelected ? { expectedWorker: remoteSelected.name, expectedAccountId: remoteSelected.accountId } : {}) }});
+        ...(remoteSelected ? { expectedWorker: remoteSelected.name, expectedAccountId: remoteSelected.accountId, authProfile: remoteSelected.authProfile } : {}) }});
       await loadProjects();
       $('importPath').value=''; $('importPanel').open=false;
       await loadManagedProject(project.folder,{force:true});
@@ -1162,6 +1162,7 @@ import { createStudioIntro } from './intro.js';
       el.classList.remove('auth-good','auth-warn','auth-bad');
       if (tone) el.classList.add(tone);
     };
+    set('authProfileValue', status.authProfile || 'Legacy default');
     set('authMethodValue', status.authMethodLabel || 'Not authenticated', status.factoryCompatible ? 'auth-good' : 'auth-warn');
     set('authStorageValue', status.credentialStorageLabel || 'Unknown', status.secureStorage ? 'auth-good' : 'auth-warn');
     const read = status.permissions?.workersRead;
@@ -1172,16 +1173,18 @@ import { createStudioIntro } from './intro.js';
   async function checkCloudflare({ manual = false } = {}) {
     const requestId = ++cloudCheckSerial;
     try {
-      const selected = $('accountId')?.value.trim() || $('remoteAccountSelect')?.value || '';
-      const suffix = selected && /^[a-f0-9]{32}$/i.test(selected) ? `?accountId=${encodeURIComponent(selected)}` : '';
+      const profile = $('authConnectionSelect').value;
+      const selected = $('authAccountSelect').value;
+      const params = new URLSearchParams({ authProfile: profile });
+      if (selected && /^[a-f0-9]{32}$/i.test(selected)) params.set('accountId', selected);
+      const suffix = '?' + params;
       const status = await api('/api/cloudflare' + suffix);
       if (requestId !== cloudCheckSerial) return;
       $('cloudflareDot').className = status.connected && status.factoryCompatible ? 'status-light online' : 'status-light offline';
       $('cloudflareState').textContent = status.connected ? (status.factoryCompatible ? 'Cloudflare connected' : 'Authentication needs attention') : 'Cloudflare not connected';
       const storageShort = status.secureStorage ? 'keychain protected' : status.authMethod === 'api_token' ? 'API token' : 'storage not protected';
-      $('cloudflareSub').textContent = status.connected ? `${status.accounts.length || 'Authenticated'} account${status.accounts.length === 1 ? '' : 's'} · ${status.authMethodLabel || 'Wrangler'} · ${storageShort}` : 'Run secure Wrangler login';
-      if (status.selectedAccount && !$('accountId').value) $('accountId').value = status.selectedAccount;
-      populateCloudAccounts(status);
+      $('cloudflareSub').textContent = status.connected ? `${status.accounts.length || 'Authenticated'} account${status.accounts.length === 1 ? '' : 's'} · ${status.authMethodLabel || 'Wrangler'} · ${storageShort}` : 'Add or reauthenticate a connection';
+      connectionUi.receiveDiagnostics(status);
       renderAuthDiagnostics(status);
       if (status.connected && status.factoryCompatible) {
         announceCloudflareAccount(status.selectedAccount || (status.accounts.length === 1 ? status.accounts[0].id : ''), { force: manual });
@@ -1244,7 +1247,7 @@ import { createStudioIntro } from './intro.js';
   }
   function openWorkerChat(item) {
     ++chatRequestSerial;
-    chatWorker = { name: item.name, accountId: item.accountId, provider: item.provider };
+    chatWorker = { name: item.name, accountId: item.accountId, authProfile: item.authProfile, provider: item.provider };
     $('workerChatName').textContent = item.name;
     $('workerChatReply').textContent = '';
     $('workerChatSend').disabled = false;
@@ -1262,7 +1265,7 @@ import { createStudioIntro } from './intro.js';
     $('workerChatSend').disabled = true;
     $('workerChatReply').textContent = 'Contacting ' + worker.name + '…';
     try {
-      const data = await api('/api/cloudflare/workers/chat', { method: 'POST', data: { accountId: worker.accountId, name: worker.name, message } });
+      const data = await api('/api/cloudflare/workers/chat', { method: 'POST', data: { accountId: worker.accountId, authProfile: worker.authProfile, name: worker.name, message } });
       if (requestId !== chatRequestSerial) return;
       $('workerChatReply').textContent = 'Falco: ' + data.reply + (data.action ? `\nProposed action (preview only): ${JSON.stringify(data.action)}` : '');
       sounds.play('reply');
@@ -1282,7 +1285,7 @@ import { createStudioIntro } from './intro.js';
     const button=$('manageTestSend'); button.disabled=true;
     $('manageTestReply').textContent='Contacting your deployed Worker...';
     try {
-      const reply=await api('/api/cloudflare/workers/chat',{method:'POST',data:{accountId:project.accountId,name:project.name,message:question}});
+      const reply=await api('/api/cloudflare/workers/chat',{method:'POST',data:{accountId:project.accountId,authProfile:project.authProfile,name:project.name,message:question}});
       if (managed !== project || requestId !== manageChatSerial) return;
       $('manageTestReply').textContent='Falco: '+reply.reply+(reply.action ? `\nProposed action (preview only): ${JSON.stringify(reply.action)}` : '');
       sounds.play('reply');
@@ -1515,6 +1518,7 @@ import { createStudioIntro } from './intro.js';
       void connectStudioSession();
       Object.assign(models, boot.defaultModels);
       await loadProjects();
+      await connectionUi.refresh().catch(error => { $('connectionNotice').textContent = error.message; });
       void checkCloudflare();
     } catch (err) {
       setError(`Local Studio connection failed: ${err.message}`);

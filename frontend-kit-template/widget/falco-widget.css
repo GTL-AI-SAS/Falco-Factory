@@ -53,3 +53,12 @@
   .falco__panel { height: min(72dvh, 300px); }
   .falco__header { padding-block: 3px; }
 }
+
+.falco__confirmation { padding: 14px; margin: 10px 0; border: 1px solid currentColor; border-radius: 10px; overflow-wrap: anywhere; }
+.falco__confirmation p { margin: 8px 0; }
+.falco__confirmation dl { margin: 10px 0; }
+.falco__confirmation dt { font-weight: 600; }
+.falco__confirmation dd { margin: 0 0 8px; white-space: pre-wrap; }
+.falco__confirmation-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.falco__confirmation button { padding: 9px 14px; border: 1px solid currentColor; border-radius: 7px; cursor: pointer; font: inherit; }
+.falco__confirmation button:disabled { opacity: .55; cursor: default; }
