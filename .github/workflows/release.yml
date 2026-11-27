@@ -1,53 +1,96 @@
-name: Falco Factory release checks
+name: Falco Factory CI
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      run_staging:
+        type: boolean
+        default: false
+        description: Run a live smoke test against the configured staging Falco Worker.
+
+permissions:
+  contents: read
+
+concurrency:
+  # Each manual run is independent, including an opted-in staging execution.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
-  verify:
+  core:
+    name: Core Validation (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
         node: [22, 24]
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: npm ci
+      - run: npm run falco:doctor
+      - run: npm test
+
+  integration:
+    name: Integration Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run test:connections-browser
+      - run: npm run test:lab-browser
+      - run: npm run test:worker-e2e
+
+  windows-release:
+    name: Windows Release Validation
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
       - run: npm ci
       - run: npm run falco:doctor
       - run: npm test
       - run: npx playwright install chromium
-        if: runner.os == 'Windows'
-      - run: npx playwright install --with-deps chromium
-        if: runner.os == 'Linux'
       - run: npm run test:browser
-      - run: npm run test:worker-e2e
+      - run: npm run test:launcher-browser
       - name: Build Windows Studio launcher
-        if: runner.os == 'Windows'
         shell: powershell
-        run: ./scripts/build-studio-launcher.ps1
+        run: ./scripts/build-studio-launcher.ps1 -Force
       - name: Package Windows release
-        if: runner.os == 'Windows'
         run: npm run release
       - name: Check packaged Windows launcher and Studio
-        if: runner.os == 'Windows'
         run: npm run test:release
       - uses: actions/upload-artifact@v4
-        if: matrix.os == 'windows-latest' && matrix.node == 24
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         with:
           name: falco-factory
           path: dist/*.zip
           if-no-files-found: error
+          retention-days: 14
 
   staging:
-    if: github.event_name == 'workflow_dispatch' && vars.FALCO_STAGING_URL != ''
+    name: Staging Smoke Test
+    needs: [core, integration, windows-release]
+    if: github.event_name == 'workflow_dispatch' && inputs.run_staging == true && vars.FALCO_STAGING_URL != '' && vars.FALCO_STAGING_ORIGIN != ''
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: staging
     env:
       FALCO_STAGING_URL: ${{ vars.FALCO_STAGING_URL }}
@@ -58,6 +101,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          cache: npm
       - run: npm ci
       - run: npm run test:staging
