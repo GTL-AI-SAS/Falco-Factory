@@ -28,21 +28,22 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm run test:browser
       - run: npm run test:worker-e2e
-      - run: npm run release
-      - name: Check clean Windows extraction and launcher
+      - name: Build Windows Studio launcher
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $zip = Get-ChildItem dist -Filter *.zip | Select-Object -First 1
-          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\Falco test release"
-          Set-Location "$env:RUNNER_TEMP\Falco test release"
-          cmd.exe /d /c main.cmd --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: powershell
+        run: ./scripts/build-studio-launcher.ps1
+      - name: Package Windows release
+        if: runner.os == 'Windows'
+        run: npm run release
+      - name: Check packaged Windows launcher and Studio
+        if: runner.os == 'Windows'
+        run: npm run test:release
       - uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        if: matrix.os == 'windows-latest' && matrix.node == 24
         with:
           name: falco-factory
           path: dist/*.zip
+          if-no-files-found: error
 
   staging:
     if: github.event_name == 'workflow_dispatch' && vars.FALCO_STAGING_URL != ''
