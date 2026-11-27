@@ -5,7 +5,7 @@ import { zipFiles } from '../lib/zip.mjs';
 import { VERSION, WRANGLER_VERSION } from '../lib/args.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const excludes = new Set(['.git','node_modules','.generated','.wrangler','.falco-operations','.falco-connections.json','dist','coverage','test-results']);
+const excludes = new Set(['.git','node_modules','.generated','.wrangler','.falco-test-lab','.falco-operations','.falco-connections.json','dist','coverage','test-results']);
 const includes = new Set(['.github','assets','bin','docs','examples','frontend-kit-template','lib','scripts','templates','tests','ui']);
 const selected = new Map();
 let packageLockCurrent = false;

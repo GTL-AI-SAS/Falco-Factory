@@ -1,0 +1,39 @@
+/**
+ * Apply around every EXISTING Falco Worker, at its original URL.
+ * This guard runs before /chat, /health, OPTIONS or any existing handler.
+ * A public proxy in front of an unguarded original Worker is not sufficient.
+ */
+export function withMovensAuth(worker, profile) {
+  if (!["clients", "admin", "employees"].includes(profile)) throw new Error("Invalid Falco profile");
+  return {
+    ...worker,
+    async fetch(request, env, executionContext) {
+      const secret = env.FALCO_GATEWAY_SECRET;
+      if (typeof secret !== "string" || secret.length < 32 || secret.length > 512
+          || !/^[A-Za-z0-9._~+/-]+=*$/.test(secret)) return denied(503);
+      const header = request.headers.get("Authorization") ?? "";
+      if (header.length > 4096 || request.headers.get("X-Falco-Profile") !== profile) return denied(401);
+      // Compare fixed-length digests without an early exit on a differing byte.
+      const encoder = new TextEncoder();
+      const [expected, supplied] = await Promise.all([
+        crypto.subtle.digest("SHA-256", encoder.encode(`Bearer ${secret}`)),
+        crypto.subtle.digest("SHA-256", encoder.encode(header)),
+      ]);
+      const a = new Uint8Array(expected);
+      const b = new Uint8Array(supplied);
+      let difference = 0;
+      for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+      if (difference !== 0) return denied(401);
+      const headers = new Headers(request.headers);
+      headers.delete("Authorization");
+      headers.delete("Cookie");
+      return worker.fetch(new Request(request, { headers }), env, executionContext);
+    },
+  };
+}
+
+function denied(status) {
+  return Response.json({ error: status === 503 ? "gateway_not_configured" : "unauthorized" }, {
+    status, headers: { "Cache-Control": "no-store" },
+  });
+}

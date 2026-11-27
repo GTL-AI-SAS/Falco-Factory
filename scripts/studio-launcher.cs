@@ -45,7 +45,7 @@ internal static class StudioLauncher
         {
             string logDirectory = Path.Combine(root, ".falco-operations");
             Directory.CreateDirectory(logDirectory);
-            string logPath = Path.Combine(logDirectory, "studio-launcher.log");
+            string logPath = Path.Combine(logDirectory, "studio-launcher-" + Process.GetCurrentProcess().Id + ".log");
             using (var log = new StreamWriter(new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.Read)))
             using (var process = new Process())
             {

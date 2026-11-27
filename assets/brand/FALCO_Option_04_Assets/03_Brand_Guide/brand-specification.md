@@ -13,9 +13,18 @@ A geometric falcon profile framed by an open circular stroke. The falcon communi
 | Token | HEX | Use |
 |---|---|---|
 | Near Black | `#090B0F` | Primary dark surfaces |
-| Mint | `#68E2C3` | Emblem ring and brand accent |
+| Mint / turquoise | `#68E2C3` | Emblem ring, the final **C** in the FALCO wordmark, and brand accent |
 | Off White | `#F3F4F6` | Primary logo and text on dark |
 | Graphite | `#2B313A` | Secondary dark surfaces |
+
+## Signature wordmark accent
+
+The final **C** in every FALCO wordmark is the Mint / turquoise accent (`#68E2C3`), matching the open emblem ring and the final cinematic identity animation.
+
+- Keep **FAL** and **O** in the foreground color defined by the selected logo variant.
+- Apply the Mint accent to the **C** consistently across horizontal, stacked, compact, and standalone wordmark assets.
+- The all-mint wordmark variant remains a single-color option; emblem-only app icons and favicon assets are unchanged.
+- This is a fixed brand treatment, not a random recoloring effect.
 
 ## Typography
 
@@ -45,7 +54,8 @@ Use at least one emblem-stroke width of clear space around the standalone mark. 
 - Preserve original proportions and spacing.
 - Use approved palette variants only.
 - Do not stretch, rotate, skew, add glow/shadow effects, or place the dark logo on low-contrast surfaces.
-- Use the monochrome versions when color reproduction is unavailable.
+- Use emblem-only monochrome versions when color reproduction is unavailable.
+- Wordmark lockups retain the Mint **C** accent in their black and white foreground variants; the existing `Monochrome/` file paths are retained for compatibility.
 
 ## Asset note
 

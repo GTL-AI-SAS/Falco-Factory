@@ -18,12 +18,20 @@ $compilerPaths = @(
 )
 $compilerPath = $compilerPaths | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 if (-not $compilerPath) { throw 'The Windows .NET Framework C# compiler was not found. Open main.cmd directly.' }
-$temporaryPath = Join-Path $studioRoot ('falco-launcher-' + [guid]::NewGuid().ToString('N') + '.exe')
+$buildRoot = [System.IO.Path]::GetFullPath((Join-Path $studioRoot '.falco-operations'))
+$buildDirectory = Join-Path $buildRoot ('launcher-build-' + [guid]::NewGuid().ToString('N'))
+$temporaryPath = Join-Path $buildDirectory 'Falco Studio.exe'
 try {
+  New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
   & $compilerPath /nologo /target:winexe /optimize+ /platform:anycpu "/out:$temporaryPath" "/win32icon:$iconPath" /reference:System.Windows.Forms.dll $sourcePath
   if ($LASTEXITCODE -ne 0) { throw 'The Falco Studio launcher could not be built.' }
-  Move-Item -LiteralPath $temporaryPath -Destination $executablePath -Force
+  # Never rename an installed/running launcher or leave extra EXEs beside it.
+  Copy-Item -LiteralPath $temporaryPath -Destination $executablePath -Force
 } finally {
-  if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath }
+  $resolvedBuildDirectory = [System.IO.Path]::GetFullPath($buildDirectory)
+  if (-not $resolvedBuildDirectory.StartsWith($buildRoot + [System.IO.Path]::DirectorySeparatorChar,[System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Refusing to clean a build directory outside .falco-operations.'
+  }
+  if (Test-Path -LiteralPath $resolvedBuildDirectory) { Remove-Item -LiteralPath $resolvedBuildDirectory -Recurse -Force }
 }
 Write-Output $executablePath

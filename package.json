@@ -18,6 +18,8 @@
     "test:worker": "node --test ./tests/worker.test.mjs ./tests/providers.test.mjs",
     "falco:doctor": "node ./bin/falco.mjs doctor",
     "test:browser": "node ./tests/e2e/browser.mjs",
+    "test:launcher-browser": "node ./tests/e2e/launcher-reopen.mjs",
+    "test:lab-browser": "node ./tests/e2e/test-lab.mjs",
     "test:staging": "node ./tests/e2e/staging.mjs",
     "release": "node ./scripts/package-release.mjs",
     "test:worker-e2e": "node ./tests/e2e/worker.mjs",

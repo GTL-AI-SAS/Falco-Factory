@@ -2,6 +2,7 @@ import { normalizeActions } from './action-contract.js';
 import { createStudioSounds } from './sounds.js';
 import { createStudioIntro } from './intro.js';
 import { createConnectionsUi } from './connections.js';
+import { createTestLabUi } from './test-lab.js';
 
 /* Falco Factory Studio — local-only client. Only the sound preference is stored. */
 (() => {
@@ -65,6 +66,9 @@ import { createConnectionsUi } from './connections.js';
     if (!response.ok) throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     return result;
   }
+  const testLabUi = createTestLabUi({api,getToken:() => token,getProject:() => managed,getModels:() => models,
+    hasEdits:() => currentManageChanges().changed || Boolean(compiledSections),isBusy:() => Boolean(pollHandle || operationPoll),
+    returnToManage:() => switchMode('manage'),editorChanged:() => updateManageDiff()});
   const connectionUi = createConnectionsUi({ api, getProject: () => managed,
     onAssigned: async project => { await loadProjects(); await loadManagedProject(project.folder, { force: true, refresh: false }); },
     onRemoteChange: () => void refreshRemoteWorkers(), onDiagnostics: () => void checkCloudflare()
@@ -315,6 +319,7 @@ import { createConnectionsUi } from './connections.js';
     $('manageError').textContent = message || '';
   }
   function switchMode(target) {
+    if (!testLabUi.allowNavigation(target)) return;
     const isManage = target === 'manage';
     $('createView').hidden = isManage;
     $('manageView').hidden = !isManage;
@@ -439,6 +444,7 @@ import { createConnectionsUi } from './connections.js';
     }
   }
   async function loadRemoteWorker(item, button) {
+    if (!testLabUi.allowWorkerSwitch()) return;
     if (pollHandle) { setManageError('Finish the ongoing deployment before loading another Worker.'); return; }
     if (managed && currentManageChanges().changed && !window.confirm('Discard unsaved edits before loading a different Worker?')) return;
     button.disabled = true;
@@ -496,6 +502,7 @@ import { createConnectionsUi } from './connections.js';
   }
 
   async function selectRemoteWorker(item) {
+    if (!testLabUi.allowWorkerSwitch()) return;
     if (item.editable && item.folder) {
       remoteSelected = null;
       $('remoteSelection').hidden = true;
@@ -596,7 +603,8 @@ import { createConnectionsUi } from './connections.js';
     }
     const originRows = $('manageOrigins').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
     invalid ||= !originRows.length || originRows.length > 20 || originRows.some(x => !/^https?:\/\/[^/?#\s]+$/.test(x));
-    $('saveDeploy').disabled = (!changes.changed && !compiledSections) || invalid || !managed || Boolean(pollHandle);
+    $('saveDeploy').disabled = (!changes.changed && !compiledSections) || invalid || !managed || Boolean(pollHandle) || testLabUi.active;
+    testLabUi.controls();
     $('manageChangeHeadline').textContent = invalid ? 'Check origins, JSON and document limits' : changes.changed ? 'Changes ready to review' : 'Everything is up to date';
     $('manageChangeDetail').textContent = invalid ? 'Correct the invalid origins, client actions JSON or oversized document.' : changes.changed ? 'A version backup will be created before publishing the update.' : 'Make an edit to preview what will be deployed.';
     const diff = $('manageDiff');
@@ -641,10 +649,14 @@ import { createConnectionsUi } from './connections.js';
     } catch (err) { const row=document.createElement('div'); row.className='history-empty'; row.textContent=err.message; list.append(row); }
   }
   async function loadManagedProject(folder, { force = false, notify = true, refresh = true } = {}) {
+    if (!testLabUi.allowWorkerSwitch()) return;
+    $('openTestLab').hidden = true;
+    $('testLabEligibility').textContent = 'Loading managed Worker…';
     if (!folder) {
       ++manageLoadSerial;
       ++manageChatSerial;
       managed = null;
+      $('testLabEligibility').textContent = '';
       for (const id of ['manageEditorPanel', 'manageProjectInfo', 'manageEditLink', 'manageOpsLink', 'manageLiveLinks', 'manageTestChat']) $(id).hidden = true;
       $('manageIdentityName').textContent = 'Choose a Falco';
       $('manageIdentitySub').textContent = 'Load a deployment or select a linked project.';
@@ -720,10 +732,12 @@ import { createConnectionsUi } from './connections.js';
         $('runtimeUpgradeStatus').textContent = err.message;
       }
       await loadVersions();
+      void testLabUi.projectLoaded().catch(error => setManageError(error.message));
       if (requestId === manageLoadSerial && notify) sounds.play('loaded');
     } catch (err) {
       if (requestId !== manageLoadSerial) return;
       managed=null;
+      void testLabUi.status();
       setManageError('Could not load the deployed configuration. ' + err.message, { notify });
     }
   }
@@ -1517,6 +1531,7 @@ import { createConnectionsUi } from './connections.js';
       browserManaged = boot.exitOnBrowserClose === true;
       void connectStudioSession();
       Object.assign(models, boot.defaultModels);
+      await testLabUi.status();
       await loadProjects();
       await connectionUi.refresh().catch(error => { $('connectionNotice').textContent = error.message; });
       void checkCloudflare();

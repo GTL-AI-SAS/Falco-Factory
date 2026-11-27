@@ -20,9 +20,17 @@ test('native launcher runs the CMD in the background, captures diagnostics and r
   await execute(executable, ['--launcher-check'], { windowsHide: true });
   await execute(executable, [], { windowsHide: true });
   assert.equal((await fs.readFile(path.join(root, 'launched.txt'), 'utf8')).trim(), '1');
-  const log = await fs.readFile(path.join(root, '.falco-operations/studio-launcher.log'), 'utf8');
+  const logDirectory = path.join(root, '.falco-operations');
+  const [logFile] = await fs.readdir(logDirectory);
+  const log = await fs.readFile(path.join(logDirectory,logFile), 'utf8');
   assert.match(log, /stub output/);
   assert.match(log, /stub error/);
+  // Both launchers remain alive together, as when reopening during the tab grace period.
+  await fs.writeFile(path.join(root,'main.cmd'),'@echo off\r\necho concurrent launch\r\nnode.exe -e "setTimeout(() => {}, 800)"\r\nexit /b 0\r\n');
+  await Promise.all([execute(executable,[],{windowsHide:true,timeout:8000}),execute(executable,[],{windowsHide:true,timeout:8000})]);
+  const logs = await fs.readdir(logDirectory);
+  assert.equal(logs.length,3,'Concurrent launches have separate logs instead of sharing a locked file');
+  for (const file of logs.filter(file=>file!==logFile)) assert.match(await fs.readFile(path.join(logDirectory,file),'utf8'),/concurrent launch/);
   await fs.rename(path.join(root, 'main.cmd'), path.join(root, 'ABRIR_FALCO_STUDIO.cmd'));
   await execute(executable, ['--launcher-check'], { windowsHide: true });
   await execute(executable, [], { windowsHide: true });

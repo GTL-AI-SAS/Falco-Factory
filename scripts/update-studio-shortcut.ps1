@@ -10,7 +10,9 @@ if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) { throw 'Falco Studi
 
 # Retain the existing CMD hook, but create a real executable with an embedded
 # icon instead of an Explorer shortcut. No system overlay settings are changed.
-& (Join-Path $PSScriptRoot 'build-studio-launcher.ps1') | Out-Null
+if (-not (Test-Path -LiteralPath (Join-Path $studioRoot 'Falco Studio.exe') -PathType Leaf)) {
+  & (Join-Path $PSScriptRoot 'build-studio-launcher.ps1') | Out-Null
+}
 
 if ($SetConsoleIcon) {
   # SetConsoleIcon affects this launcher's classic console window only. Windows

@@ -92,6 +92,18 @@
           <button type="button" id="createNav" class="mode-tab active" role="tab" aria-controls="createView" aria-selected="true"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v14M2 9h14"/></svg> Create new</button>
           <button type="button" id="manageNav" class="mode-tab" role="tab" aria-controls="manageView" aria-selected="false" tabindex="-1"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="13" height="13" rx="2"/><path d="M2.5 10h13M6 6h.01M6 13h.01"/></svg> Manage Workers</button>
         </div>
+        <div id="testLabBanner" class="lab-banner" role="status" hidden><strong id="testLabBannerText"></strong><button type="button" class="btn outline" id="testLabReturn">Return to Test Lab</button></div>
+        <section id="testLabEmergency" class="lab-emergency" role="alert" hidden></section>
+        <dialog id="testLabLaunch" class="lab-dialog">
+          <form id="labLaunchForm">
+            <h2>Open Test Lab</h2><p>Create a disposable, authenticated Cloudflare Worker Preview. This runs one real provider verification request and may incur provider charges.</p>
+            <div class="field"><label for="labProvider">Test provider</label><select id="labProvider" class="styled-select"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select></div>
+            <div class="field"><label for="labModel">Model</label><input id="labModel" required maxlength="100" pattern="[\w.:-]{2,100}" /></div>
+            <div id="labKeyArea" class="field"><label for="labKey">Dedicated Test Lab API key</label><input id="labKey" type="password" autocomplete="off" maxlength="1024" /><p class="helper">Used for this Preview only. Never saved in the browser or session manifest.</p></div>
+            <p id="labLaunchError" role="alert"></p>
+            <div class="action-help-row"><button class="btn primary" type="submit">Start isolated Preview</button><button id="labLaunchCancel" class="btn ghost" type="button">Cancel</button></div>
+          </form>
+        </dialog>
         <div id="createView" role="tabpanel" aria-labelledby="createNav">
           <header class="workspace-hero create-hero">
             <div class="hero-content">
@@ -99,9 +111,9 @@
               <p>Configure an AI assistant, preview the build, and deploy your Worker to Cloudflare.</p>
             </div>
             <div class="hero-art" aria-hidden="true">
-              <div class="hero-orbit orbit-outer"></div><div class="hero-orbit orbit-inner"></div>
-              <i class="orbit-point"></i><i class="orbit-point second"></i>
+              <div class="hero-orbit orbit-outer"><i class="orbit-point"></i></div><div class="hero-orbit orbit-inner"><i class="orbit-point second"></i></div>
               <div class="hero-emblem"><img src="/assets/falco-app-icon.svg" alt="" width="120" height="120" /></div>
+              <div class="hero-orbit orbit-inner orbit-front"><i class="orbit-light-front"></i></div>
               <i class="hero-registration top"></i><i class="hero-registration bottom"></i>
             </div>
           </header>
@@ -246,9 +258,9 @@
               <p>Discover deployments, edit linked projects, and manage the releases running on Cloudflare.</p>
             </div>
             <div class="hero-art" aria-hidden="true">
-              <div class="hero-orbit orbit-outer"></div><div class="hero-orbit orbit-inner"></div>
-              <i class="orbit-point"></i><i class="orbit-point second"></i>
+              <div class="hero-orbit orbit-outer"><i class="orbit-point"></i></div><div class="hero-orbit orbit-inner"><i class="orbit-point second"></i></div>
               <div class="hero-emblem"><img src="/assets/falco-app-icon.svg" alt="" width="120" height="120" /></div>
+              <div class="hero-orbit orbit-inner orbit-front"><i class="orbit-light-front"></i></div>
               <i class="hero-registration top"></i><i class="hero-registration bottom"></i>
             </div>
           </header>
@@ -259,6 +271,29 @@
             <a class="step-pill" href="#operationsPanel" id="manageOpsLink" hidden><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h12M3 9h12M3 13h12"/><circle cx="6" cy="5" r="1.7"/><circle cx="12" cy="9" r="1.7"/><circle cx="7" cy="13" r="1.7"/></svg><span>Releases &amp; settings</span></a>
           </nav>
           <div id="manageError" class="form-error manage-error" role="alert" hidden></div>
+          <section id="testLabPanel" class="panel lab-panel" hidden aria-labelledby="labHeading">
+            <header class="lab-session-header">
+              <div class="lab-session-intro"><div class="lab-session-brand"><span class="lab-session-mark" aria-hidden="true"><img src="/assets/falco-emblem.svg" width="30" height="30" alt="" /></span><div><span class="lab-eyebrow">YOUR ISOLATED PLAYGROUND</span><h2 id="labHeading">Falco Test Lab</h2></div></div><span id="testLabStatus" class="lab-session-badge" role="status">Preparing Preview</span></div>
+              <div class="lab-session-exit"><button type="button" id="labEnd" class="btn lab-end-button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M10 2v7M5.3 4.6a7 7 0 1 0 9.4 0"/></svg><span id="labEndLabel">End Test</span></button><span id="labExitHelp">Delete this temporary Preview</span></div>
+              <dl class="lab-session-meta"><div><dt>WORKER</dt><dd id="labWorkerName">Preparing…</dd></div><div><dt>MODEL</dt><dd><span id="labProviderName"></span><span id="labModelName"></span></dd></div><div><dt>PREVIEW</dt><dd id="labPreviewName">Creating a private test space…</dd></div><div><dt>HEALTH</dt><dd id="labHealthLabel">Not checked yet</dd></div></dl>
+              <p class="lab-session-note"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2 3 4.5v4c0 3.4 2.5 5.9 6 7.5 3.5-1.6 6-4.1 6-7.5v-4L9 2Z"/><path d="m6.5 9 1.8 1.8 3.4-3.6"/></svg>Isolated Preview <span aria-hidden="true">·</span> Fictional data <span aria-hidden="true">·</span> Production stays separate</p>
+            </header>
+            <p id="testLabRecovery" class="lab-recovery" role="alert"></p><pre id="labProgress" class="ops-output" aria-live="polite"></pre>
+            <div class="lab-columns">
+              <section aria-labelledby="labPlaygroundHeading"><h3 id="labPlaygroundHeading">Interaction Playground</h3>
+                <p class="helper">Try the buttons yourself, or ask Falco in chat to use them.</p>
+                <div class="lab-quick-actions"><button class="btn outline" type="button" data-lab-effect="celebrate" aria-pressed="false">Celebrate</button><button class="btn outline" type="button" data-lab-effect="cry" aria-pressed="false">Cry</button><button class="btn outline" type="button" data-lab-effect="sing" aria-pressed="false">Sing</button></div>
+                <div id="labEffect" class="lab-effect" role="status" aria-live="polite"></div>
+                <div class="field"><label for="labTargetText">Playground text box</label><input id="labTargetText" type="text" maxlength="100" autocomplete="off" placeholder="Ask Falco: Write the word Hello in the text box" /><p class="helper">Type here yourself, or ask Falco to write a word or short text.</p></div>
+                <p id="labPlaygroundStatus" class="helper" role="status" aria-live="polite"></p>
+                <section class="lab-suggestions" aria-labelledby="labSuggestionsHeading"><div class="lab-suggestions-heading"><h4 id="labSuggestionsHeading">Try asking Falco</h4><span>Fictional API examples</span></div><p class="helper">Choose a suggestion to send it in chat. Try “Make a reservation” to test how Falco asks for missing details.</p><div id="labSuggestions" class="lab-suggestion-list"></div></section>
+                <div id="labConversation" class="lab-conversation" role="log" aria-live="polite"></div>
+                <form id="labChatForm" class="field"><label for="labMessage">Message Falco Test Lab</label><textarea id="labMessage" maxlength="2000" rows="3" required placeholder="Ask for a fictional customer, weekly expenses, or create a record…"></textarea><button id="labSend" type="submit" class="btn primary">Send</button></form>
+                <p id="labProviderMetadata" class="helper"></p>
+              </section>
+              <section aria-labelledby="labInspectorHeading"><h3 id="labInspectorHeading">API Inspector</h3><p class="helper">Actual browser handler calls to this session’s Toy API. Latest 200 calls.</p><p id="labInspectorEmpty">No Toy API calls yet.</p><div id="labInspector" class="lab-inspector"></div></section>
+            </div>
+          </section>
           <div class="manage-grid">
             <div class="manage-main">
               <section class="panel cloud-catalog-panel" id="cloudCatalogPanel">
@@ -314,6 +349,7 @@
                 </details>
               </section>
               <section class="panel" id="manageEditorPanel" hidden>
+                <div id="testLabLaunchCard" class="lab-launch-card" hidden><div class="lab-launch-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-3L14 9V3M8 15h8"/><path d="M10 18h.01M14 17h.01"/></svg></div><div class="lab-launch-copy"><span class="lab-eyebrow">FALCO TEST LAB</span><strong>A little room to experiment.</strong><p>Try chat, page actions and fictional API calls in an isolated Preview.</p><span id="testLabEligibility" class="helper" role="status"></span></div><button type="button" id="openTestLab" class="btn primary lab-launch-button" hidden><span>Open Test Lab</span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h10M10 5l4 4-4 4"/></svg></button></div>
                 <header class="panel-header"><span class="section-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5C7.2 4 5.3 3.5 2.5 4v10c2.8-.5 4.7 0 6.5 1.5 1.8-1.5 3.7-2 6.5-1.5V4c-2.8-.5-4.7 0-6.5 1.5Zm0 0v10"/></svg></span><div><h2>Knowledge, origins &amp; actions</h2><p>Edit the documents and website permissions for this Worker.</p></div></header>
                 <div class="origins-panel field active-storage" id="manageStorageCard">
                   <div class="label-row"><strong class="inline-icon"><svg class="icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="9" cy="4.5" rx="5.75" ry="2.5"/><path d="M3.25 4.5v9c0 1.4 2.57 2.5 5.75 2.5s5.75-1.1 5.75-2.5v-9M3.25 9c0 1.4 2.57 2.5 5.75 2.5s5.75-1.1 5.75-2.5"/></svg> Knowledge storage</strong><span class="tiny-tag" id="manageKnowledgeMode">Checking…</span></div>

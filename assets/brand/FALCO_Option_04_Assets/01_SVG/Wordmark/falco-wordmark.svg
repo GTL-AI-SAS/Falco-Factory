@@ -2,5 +2,5 @@
   <title>FALCO wordmark</title>
   
   <text x="12" y="177" fill="#F3F4F6" font-family="Inter, Arial, sans-serif"
-        font-size="174" font-weight="800" letter-spacing="1.5">FALCO</text>
+        font-size="174" font-weight="800" letter-spacing="1.5">FAL<tspan fill="#68E2C3">C</tspan>O</text>
 </svg>

@@ -11,5 +11,5 @@
     <path d="M81 160 L154 134 L101 188 L68 198 Z" fill="#68E2C3"/>
   </g>
   <text x="310" y="229" fill="#68E2C3" font-family="Inter, Arial, sans-serif"
-        font-size="174" font-weight="800" letter-spacing="1.5">FALCO</text>
+        font-size="174" font-weight="800" letter-spacing="1.5">FAL<tspan fill="#68E2C3">C</tspan>O</text>
 </svg>

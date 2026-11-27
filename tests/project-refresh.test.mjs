@@ -66,6 +66,38 @@ test('recover exact bundled or unbundled literals without executing Worker code'
   assert.throws(() => embeddedKnowledge(['var businessInstructions = "a";\nvar faqText = "a";', 'var faqText = "b";']), /Ambiguous/);
 });
 
+test('recover esbuild static multiline templates with exact escapes and no interpolation', () => {
+  const instructions = '  var businessInstructions = "Be helpful.";\n';
+  const faq = 'const faqText = `First line\r\nSecond line\rThird line\nEscaped \\`code\\`, \\${price}, \\u{1F600} and \\xE9.\nJoined\\\r\nline`; // bundled context\n';
+  assert.deepEqual(embeddedKnowledge([instructions + faq]), {
+    instructions:'Be helpful.',faq:'First line\nSecond line\nThird line\nEscaped `code`, ${price}, 😀 and é.\nJoinedline'
+  });
+  assert.deepEqual(embeddedKnowledge(['export const businessInstructions = ``;\nexport const faqText = `FAQ`;']), {instructions:'',faq:'FAQ'});
+  for (const source of [
+    'var faqText = `FAQ ${someFunction()}`;',
+    'var faqText = `FAQ` + someFunction();',
+    'var faqText = String.raw`FAQ`;',
+    'const example = `\nvar faqText = "fake";\n`;',
+    'const example = "var faqText = \\"fake\\";";',
+    '/*\nvar faqText = `fake`;\n*/'
+  ]) assert.throws(() => embeddedKnowledge([instructions + source]), /Cannot recover exact knowledge/);
+  assert.throws(() => embeddedKnowledge([instructions + 'var faqText = `First`;\nvar faqText = "Second";']), /Ambiguous/);
+});
+
+test('remote refresh accepts multipart esbuild template output and preserves its exact FAQ', async t => {
+  const {root} = await fixture(t);
+  const live = deployed({fetcher:async () => {
+    const form = new FormData();
+    const faq = knowledge.faq.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+    form.set('index.js',new File([`var businessInstructions = ${JSON.stringify(knowledge.instructions)};\nvar faqText = \`${faq}\`;\n`],'index.js'));
+    form.set('index.js.map',new File([JSON.stringify({sourcesContent:['export const faqText = "stale";']})],'index.js.map'));
+    return new Response(form);
+  }});
+  const loaded = await refreshProject(root,name,{reader:live.reader});
+  assert.equal(loaded.faq,knowledge.faq);
+  assert.equal(loaded.instructions,knowledge.instructions);
+});
+
 test('load replaces stale settings, actions and embedded knowledge together and keeps a recoverable backup', async t => {
   const { root, project } = await fixture(t);
   const live = deployed();

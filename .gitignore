@@ -14,3 +14,4 @@ falco-launcher-*.exe
 .falco-connections.json
 .falco-connections.json.*.tmp
 .falco-operations/
+.falco-test-lab/
